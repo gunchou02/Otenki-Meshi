@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>お天気メシ - グルメ予報</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=Poppins:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+
+    <style>
+      /* === ベーススタイル設定 === */
+      body {
+        font-family: "Noto Sans JP", sans-serif;
+        background-color: #eef2f6;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .font-logo {
+        font-family: "Zen Kaku Gothic New", sans-serif;
+        font-weight: 900;
+        letter-spacing: 0.02em;
+      }
+
+      /* === アプリケーションコンテナ (レイアウト修正済み) === */
+      .app-container {
+        width: 100%;
+        max-width: 1080px;
+        background-color: #ffffff;
+
+        /* PC画面での高さ固定設定（スクロールバー対策） */
+        height: 90vh;
+        max-height: 900px;
+        min-height: 600px;
+
+        box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.1);
+        border-radius: 2.5rem;
+        overflow: hidden; /* コンテナからはみ出す要素を隠す */
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* === PC向けレイアウト設定 === */
+      @media (min-width: 860px) {
+        .app-container {
+          flex-direction: row;
+        }
+        .hero-section {
+          width: 42%;
+          flex-shrink: 0;
+          height: 100%;
+        }
+        .content-section {
+          width: 58%;
+          height: 100%;
+          /* ★重要: コンテンツエリア内でのみスクロールさせる設定 */
+          overflow-y: auto;
+
+          /* スクロールバーのデザイン微調整 */
+          scrollbar-width: thin;
+          scrollbar-color: #cbd5e1 transparent;
+        }
+      }
+
+      /* === モバイル向けレイアウト設定 === */
+      @media (max-width: 859px) {
+        .app-container {
+          /* モバイルでは高さを固定せず、自然にスクロールさせる */
+          height: auto;
+          max-height: none;
+          overflow: visible;
+        }
+        .content-section {
+          overflow-y: visible;
+        }
+      }
+
+      /* === [LEFT] ヒーローセクション === */
+      .hero-bg {
+        background: linear-gradient(145deg, #3b82f6 0%, #4f46e5 100%);
+        position: relative;
+        overflow: hidden;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 4rem 3rem;
+      }
+
+      /* 背景パーティクル */
+      .particle {
+        position: absolute;
+        opacity: 0.15;
+        animation: float-particle 8s infinite linear;
+      }
+      .p1 {
+        top: 10%;
+        left: 10%;
+        animation-duration: 10s;
+        font-size: 2rem;
+      }
+      .p2 {
+        top: 20%;
+        right: 20%;
+        animation-duration: 12s;
+        animation-delay: -2s;
+        font-size: 1.5rem;
+      }
+      .p3 {
+        bottom: 30%;
+        left: 15%;
+        animation-duration: 9s;
+        animation-delay: -4s;
+        font-size: 2.5rem;
+      }
+      .p4 {
+        bottom: 10%;
+        right: 10%;
+        animation-duration: 11s;
+        animation-delay: -1s;
+        font-size: 2rem;
+      }
+
+      @keyframes float-particle {
+        0% {
+          transform: translateY(0) rotate(0deg);
+          opacity: 0.1;
+        }
+        50% {
+          transform: translateY(-20px) rotate(180deg);
+          opacity: 0.2;
+        }
+        100% {
+          transform: translateY(0) rotate(360deg);
+          opacity: 0.1;
+        }
+      }
+
+      /* メインアイコン浮遊アニメーション */
+      .main-float-icon {
+        filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.2));
+        animation: float-main 4s ease-in-out infinite;
+      }
+      @keyframes float-main {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-12px);
+        }
+      }
+
+      /* === [RIGHT] コンテンツセクション === */
+      .content-section {
+        background-color: #f8fafc;
+        padding: 2.5rem 3rem;
+      }
+
+      /* ウェルカムグラフィック */
+      .welcome-graphic {
+        position: relative;
+        width: 280px;
+        height: 280px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* フローティングカード */
+      .floating-card {
+        position: absolute;
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        padding: 0.75rem 1rem;
+        border-radius: 1rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        font-size: 0.75rem;
+        font-weight: bold;
+        color: #4b5563;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        animation: float-card 5s ease-in-out infinite;
+      }
+      .fc1 {
+        top: 10%;
+        left: -10%;
+        animation-delay: 0s;
+      }
+      .fc2 {
+        bottom: 20%;
+        right: -5%;
+        animation-delay: -1.5s;
+      }
+      .fc3 {
+        top: 50%;
+        right: -15%;
+        animation-delay: -3s;
+      }
+
+      @keyframes float-card {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-8px);
+        }
+      }
+
+      /* メインボタン (CTA) */
+      .btn-primary {
+        background: linear-gradient(to right, #1f2937, #374151);
+        color: white;
+        border-radius: 1rem;
+        box-shadow: 0 10px 25px -5px rgba(31, 41, 55, 0.3);
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        position: relative;
+        overflow: hidden;
+      }
+      .btn-primary:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 30px -5px rgba(31, 41, 55, 0.4);
+      }
+      .btn-primary::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.2),
+          transparent
+        );
+        transition: 0.5s;
+      }
+      .btn-primary:hover::after {
+        left: 100%;
+      }
+
+      /* ローディングアニメーション */
+      .loader {
+        border-top-color: #3b82f6;
+        animation: spinner 0.8s linear infinite;
+      }
+      @keyframes spinner {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* 表示アニメーション */
+      .slide-up {
+        animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      @keyframes slideUp {
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* スクロールバーのカスタマイズ (WebKit) */
+      .content-section::-webkit-scrollbar {
+        width: 5px;
+      }
+      .content-section::-webkit-scrollbar-thumb {
+        background-color: #cbd5e1;
+        border-radius: 3px;
+      }
+
+      /* 履歴リストアイテム */
+      .history-item {
+        transition: all 0.2s;
+      }
+      .history-item:hover {
+        background-color: #eff6ff;
+        border-color: #bfdbfe;
+        transform: translateX(3px);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app-container">
+      <aside class="hero-section hero-bg text-white z-10">
+        <i class="fa-regular fa-snowflake particle p1"></i>
+        <i class="fa-solid fa-cloud-rain particle p2"></i>
+        <i class="fa-regular fa-sun particle p3"></i>
+        <i class="fa-solid fa-wind particle p4"></i>
+
+        <div
+          class="relative z-10 flex flex-col h-full justify-center items-center md:items-start text-center md:text-left"
+        >
+          <div
+            class="mb-8 main-float-icon relative w-48 h-40 flex items-center justify-center"
+          >
+            <i
+              class="fa-solid fa-sun text-orange-400 text-7xl absolute -top-2 -right-2 animate-pulse"
+              style="filter: drop-shadow(0 4px 6px rgba(251, 146, 60, 0.3))"
+            ></i>
+            <i
+              class="fa-solid fa-cloud text-white text-[9rem] absolute z-10"
+              style="
+                filter: drop-shadow(0 10px 15px rgba(59, 130, 246, 0.2));
+                text-shadow: 0 4px 0 #e2e8f0;
+              "
+            ></i>
+            <div class="z-20 flex gap-1 pt-6 pr-2">
+              <i
+                class="fa-solid fa-utensils text-blue-500 text-5xl"
+                style="
+                  filter: drop-shadow(0 2px 4px rgba(59, 130, 246, 0.2));
+                  transform: rotate(-5deg);
+                "
+              ></i>
+            </div>
+          </div>
+
+          <div>
+            <div
+              class="flex items-center justify-center md:justify-start gap-2 mb-2 opacity-80"
+            >
+              <span
+                class="bg-white/20 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase"
+                >AI Weather & Food</span
+              >
+            </div>
+            <h1
+              class="font-logo text-5xl lg:text-6xl tracking-tight leading-none mb-5 drop-shadow-sm"
+            >
+              お天気<br class="hidden md:block" />メシ
+            </h1>
+            <p
+              class="text-blue-100 text-base lg:text-lg font-medium opacity-90 leading-relaxed max-w-sm mx-auto md:mx-0"
+            >
+              空模様と現在地をAIが瞬時に分析。<br />
+              「今、一番食べたい」を提案します。
+            </p>
+          </div>
+        </div>
+      </aside>
+
+      <section class="content-section flex flex-col relative">
+        <div
+          id="placeholder"
+          class="flex-1 flex flex-col items-center justify-center py-10 fade-in-up"
+        >
+          <div class="welcome-graphic mb-8">
+            <div
+              class="relative z-10 text-blue-500/20 flex justify-center items-center"
+            >
+              <i class="fa-solid fa-cloud text-9xl absolute scale-125"></i>
+              <i
+                class="fa-solid fa-utensils text-6xl absolute text-blue-600/80 z-20"
+              ></i>
+            </div>
+            <div class="floating-card fc1 text-blue-600">
+              <i class="fa-solid fa-temperature-half"></i> 気温分析中...
+            </div>
+            <div class="floating-card fc2 text-orange-500">
+              <i class="fa-regular fa-clock"></i> ランチタイム？
+            </div>
+            <div class="floating-card fc3 text-purple-500">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> AIセレクト
+            </div>
+          </div>
+
+          <h2 class="text-2xl font-bold text-gray-800 mb-3">
+            今日のグルメを予報します❗️
+          </h2>
+          <p
+            class="text-gray-500 text-sm text-center leading-relaxed mb-8 max-w-xs"
+          >
+            下のボタンを押して、現在地周辺の<br />天気とおすすめのお店をチェック！
+          </p>
+
+          <button
+            onclick="getRecommendation()"
+            class="btn-primary w-full max-w-sm py-5 font-bold text-lg flex items-center justify-center gap-3 group"
+          >
+            <div
+              class="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center group-hover:rotate-12 transition-transform"
+            >
+              <i class="fa-solid fa-location-arrow text-sm"></i>
+            </div>
+            <span>現在地でスタート</span>
+          </button>
+
+          <div id="historySection" class="w-full max-w-sm mt-12 hidden">
+            <div
+              class="flex items-center justify-between border-b border-gray-200 pb-2 mb-3"
+            >
+              <h3
+                class="text-xs font-bold text-gray-400 uppercase tracking-wider"
+              >
+                履歴
+              </h3>
+              <span class="text-[10px] text-gray-400">タップで復元</span>
+            </div>
+            <div id="historyList" class="space-y-2"></div>
+          </div>
+        </div>
+
+        <div
+          id="loader"
+          class="hidden flex-1 flex flex-col items-center justify-center py-10"
+        >
+          <div
+            class="loader ease-linear rounded-full border-4 border-t-4 border-blue-500/30 h-14 w-14 mb-5"
+          ></div>
+          <p class="text-gray-700 text-base font-bold animate-pulse">
+            GPSと天気を分析中...
+          </p>
+          <p class="text-gray-400 text-xs mt-2">最適なお店を探しています</p>
+        </div>
+
+        <div id="result" class="hidden flex-1 flex flex-col pt-4 pb-4">
+          <div class="flex items-center justify-between mb-2 slide-up">
+            <h2 class="text-xl font-bold text-gray-900">分析結果</h2>
+            <button
+              onclick="resetApp()"
+              class="text-gray-400 hover:text-gray-600 transition-colors text-sm font-bold flex items-center gap-1"
+            >
+              <i class="fa-solid fa-rotate-left"></i> リセット
+            </button>
+          </div>
+
+          <div
+            class="mb-5 slide-up flex items-center gap-1.5 text-gray-500 text-sm font-medium"
+            style="animation-delay: 50ms"
+          >
+            <i class="fa-solid fa-location-crosshairs text-blue-500"></i>
+            <span id="locationNameDisplay">現在地を取得中...</span>
+          </div>
+
+          <div
+            class="weather-card p-5 mb-6 flex items-center justify-between bg-white border border-blue-100 rounded-3xl shadow-sm slide-up"
+            style="animation-delay: 0ms"
+          >
+            <div class="flex items-center gap-5">
+              <div
+                id="weatherIconBg"
+                class="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center text-4xl shadow-sm"
+              >
+                <i
+                  id="weatherIconDisplay"
+                  class="fa-solid fa-cloud text-blue-500"
+                ></i>
+              </div>
+              <div>
+                <p
+                  class="text-blue-500 text-[10px] font-black uppercase tracking-widest mb-1"
+                >
+                  Current Weather
+                </p>
+                <div class="flex items-baseline gap-3">
+                  <span
+                    id="tempDisplay"
+                    class="text-3xl font-black text-gray-800"
+                    >--°</span
+                  >
+                  <span
+                    id="weatherTextDisplay"
+                    class="text-lg font-bold text-gray-600"
+                    >--</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="slide-up mb-8" style="animation-delay: 100ms">
+            <div
+              class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50 rounded-3xl p-5 relative"
+            >
+              <div
+                class="absolute -top-2 left-10 w-5 h-5 bg-blue-50 border-t border-l border-blue-100/50 transform rotate-45"
+              ></div>
+              <div class="flex items-center gap-2 mb-2">
+                <i class="fa-solid fa-robot text-blue-500"></i>
+                <p class="text-xs font-black text-blue-600 tracking-wider">
+                  AI RECOMMENDATION
+                </p>
+              </div>
+              <p
+                id="weatherMessage"
+                class="text-sm text-gray-800 font-bold leading-relaxed ml-1"
+              ></p>
+            </div>
+          </div>
+
+          <div
+            class="flex items-center justify-between mb-4 slide-up"
+            style="animation-delay: 200ms"
+          >
+            <h2
+              class="text-base font-bold text-gray-900 flex items-center gap-2"
+            >
+              <i class="fa-solid fa-map-pin text-blue-500"></i> おすすめスポット
+            </h2>
+            <span
+              class="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full"
+              >TOP 5</span
+            >
+          </div>
+
+          <div id="shopList" class="space-y-4 mb-6"></div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      // API設定
+      const API_URL =
+        "https://r68v7rgxg6.execute-api.ap-northeast-1.amazonaws.com/recommend";
+
+      // ページ読み込み時の処理
+      document.addEventListener("DOMContentLoaded", () => {
+        renderHistory();
+      });
+
+      // アプリリセット処理
+      function resetApp() {
+        document.getElementById("result").classList.add("hidden");
+        document.getElementById("placeholder").classList.remove("hidden");
+        document
+          .querySelector("#placeholder button")
+          .classList.remove("hidden");
+
+        // 住所表示リセット
+        document.getElementById("locationNameDisplay").innerText =
+          "現在地を取得中...";
+        renderHistory();
+      }
+
+      // メイン：位置情報取得 & APIコール
+      function getRecommendation() {
+        const loader = document.getElementById("loader");
+        const result = document.getElementById("result");
+        const placeholder = document.getElementById("placeholder");
+
+        // UI切り替え
+        placeholder.classList.add("hidden");
+        result.classList.add("hidden");
+        loader.classList.remove("hidden");
+
+        if (!navigator.geolocation) {
+          alert("ブラウザが位置情報をサポートしていません。");
+          resetApp();
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+
+            // 住所取得（OpenStreetMap API）
+            fetchLocationName(lat, lon);
+
+            try {
+              // API呼び出し
+              const response = await fetch(`${API_URL}?lat=${lat}&lon=${lon}`);
+              if (!response.ok) throw new Error("API call failed");
+              const data = await response.json();
+
+              saveToHistory(data);
+              displayResult(data);
+            } catch (error) {
+              console.error("Error:", error);
+              alert(
+                "データの取得に失敗しました。しばらく時間を置いてお試しください。",
+              );
+              resetApp();
+            }
+          },
+          () => {
+            alert("位置情報の利用を許可してください。");
+            resetApp();
+          },
+        );
+      }
+
+      // 住所取得関数 (Reverse Geocoding)
+      async function fetchLocationName(lat, lon) {
+        const displayEl = document.getElementById("locationNameDisplay");
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14&accept-language=ja`,
+          );
+          const data = await response.json();
+
+          let locationText = "現在地";
+          if (data.address) {
+            const addr = data.address;
+            const province = addr.province || addr.state || "";
+            const city = addr.city || addr.ward || addr.town || "";
+            const suburb =
+              addr.suburb || addr.quarter || addr.neighbourhood || "";
+
+            const fullAddress = `${province} ${city} ${suburb}`.trim();
+            if (fullAddress) locationText = fullAddress;
+          }
+          displayEl.innerText = locationText;
+        } catch (e) {
+          console.error("Address fetch error:", e);
+          displayEl.innerText = "現在地 (住所取得失敗)";
+        }
+      }
+
+      // 履歴保存 (LocalStorage)
+      function saveToHistory(data) {
+        const historyItem = {
+          id: Date.now(),
+          date: new Date().toLocaleDateString("ja-JP", {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          weather: data.weather,
+          temp: Math.round(data.temp),
+          keyword: data.keyword,
+          message: data.message,
+          shops: data.shops,
+        };
+
+        let history = JSON.parse(
+          localStorage.getItem("otenki_history") || "[]",
+        );
+        history.unshift(historyItem);
+        if (history.length > 5) history = history.slice(0, 5);
+        localStorage.setItem("otenki_history", JSON.stringify(history));
+      }
+
+      // 履歴表示
+      function renderHistory() {
+        const history = JSON.parse(
+          localStorage.getItem("otenki_history") || "[]",
+        );
+        const historySection = document.getElementById("historySection");
+        const historyList = document.getElementById("historyList");
+
+        if (history.length === 0) {
+          historySection.classList.add("hidden");
+          return;
+        }
+
+        historyList.innerHTML = "";
+        history.forEach((item) => {
+          const firstShop =
+            item.shops && item.shops.length > 0
+              ? item.shops[0].name
+              : "おすすめ店";
+          const weatherIcon = getWeatherIcon(item.weather);
+          const div = document.createElement("div");
+
+          div.className =
+            "history-item bg-white p-3 rounded-xl border border-gray-100 flex justify-between items-center cursor-pointer";
+          div.onclick = () => {
+            document.getElementById("placeholder").classList.add("hidden");
+            document.getElementById("result").classList.remove("hidden");
+            displayResult(item);
+          };
+
+          div.innerHTML = `
+              <div class="flex items-center gap-3 overflow-hidden">
+                  <div class="w-10 h-10 shrink-0 rounded-full bg-blue-50 flex items-center justify-center text-lg shadow-sm">${weatherIcon}</div>
+                  <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-2 mb-0.5">
+                         <p class="text-sm font-bold text-gray-800 truncate">${item.keyword}</p>
+                         <span class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-medium">${item.temp}°C</span>
+                      </div>
+                      <p class="text-xs text-gray-500 truncate"><i class="fa-solid fa-store mr-1 text-gray-300"></i>${firstShop}...</p>
+                      <p class="text-[10px] text-gray-300 mt-0.5">${item.date}</p>
+                  </div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-gray-300 text-xs shrink-0 pl-2"></i>
+          `;
+          historyList.appendChild(div);
+        });
+        historySection.classList.remove("hidden");
+      }
+
+      // 天気アイコン取得ヘルパー
+      function getWeatherIcon(weather) {
+        const map = {
+          Clear: "☀️",
+          Clouds: "☁️",
+          Rain: "☔",
+          Snow: "☃️",
+          Thunderstorm: "⚡",
+          Drizzle: "💧",
+          Mist: "🌫️",
+        };
+        return map[weather] || "🌤️";
+      }
+
+      // 結果表示関数
+      function displayResult(data) {
+        const loader = document.getElementById("loader");
+        const result = document.getElementById("result");
+        const shopList = document.getElementById("shopList");
+
+        loader.classList.add("hidden");
+
+        // 天気情報マッピング
+        const weatherInfo = {
+          Clear: {
+            text: "晴れ",
+            icon: "fa-sun",
+            color: "text-orange-500",
+            bg: "bg-orange-50",
+          },
+          Clouds: {
+            text: "曇り",
+            icon: "fa-cloud",
+            color: "text-gray-500",
+            bg: "bg-gray-50",
+          },
+          Rain: {
+            text: "雨",
+            icon: "fa-cloud-showers-heavy",
+            color: "text-blue-500",
+            bg: "bg-blue-50",
+          },
+          Snow: {
+            text: "雪",
+            icon: "fa-snowflake",
+            color: "text-cyan-400",
+            bg: "bg-cyan-50",
+          },
+          Thunderstorm: {
+            text: "雷雨",
+            icon: "fa-bolt",
+            color: "text-purple-500",
+            bg: "bg-purple-50",
+          },
+          Drizzle: {
+            text: "霧雨",
+            icon: "fa-cloud-rain",
+            color: "text-blue-400",
+            bg: "bg-blue-50",
+          },
+          Mist: {
+            text: "霧",
+            icon: "fa-smog",
+            color: "text-gray-400",
+            bg: "bg-gray-50",
+          },
+        };
+        const info = weatherInfo[data.weather] || {
+          text: data.weather,
+          icon: "fa-cloud",
+          color: "text-blue-500",
+          bg: "bg-blue-50",
+        };
+
+        document.getElementById("tempDisplay").innerText =
+          `${data.temp ? Math.round(data.temp) : "--"}°`;
+        document.getElementById("weatherTextDisplay").innerText = info.text;
+
+        const iconEl = document.getElementById("weatherIconDisplay");
+        iconEl.className = `fa-solid ${info.icon} ${info.color}`;
+        document.getElementById("weatherIconBg").className =
+          `w-16 h-16 rounded-2xl flex items-center justify-center text-4xl shadow-sm ${info.bg}`;
+        document.getElementById("weatherMessage").innerText = data.message;
+
+        // 店舗カード生成
+        shopList.innerHTML = "";
+        if (data.shops) {
+          data.shops.forEach((shop, index) => {
+            const delay = index * 100;
+            const query = encodeURIComponent(
+              shop.name + " " + (shop.address || ""),
+            );
+            const mapUrl = `https://www.google.com/maps/search/?api=1&query=${query}`;
+
+            const card = `
+                <div class="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 slide-up cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group" style="animation-delay: ${delay}ms;">
+                  <div class="flex gap-5 mb-4" onclick="window.open('${shop.urls.pc}', '_blank')">
+                    <div class="relative w-24 h-24 shrink-0">
+                      <img src="${shop.photo.pc.s}" alt="${shop.name}" class="w-full h-full rounded-2xl object-cover bg-gray-100 shadow-sm">
+                    </div>
+                    <div class="flex-1 min-w-0 flex flex-col justify-center py-1">
+                      <h3 class="font-bold text-gray-900 text-base truncate mb-1.5 group-hover:text-blue-600 transition-colors">${shop.name}</h3>
+                      <div class="flex flex-wrap items-center text-xs text-gray-500 mb-3 gap-2">
+                        <span class="bg-gray-100 px-2.5 py-1 rounded-lg text-gray-600 font-bold truncate">${shop.genre.name}</span>
+                        <span class="truncate text-gray-400 pl-1">${shop.catch}</span>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <div class="text-xs font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full flex items-center">
+                            <i class="fa-solid fa-yen-sign mr-1 text-[10px]"></i>${shop.budget.name}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <a href="${mapUrl}" target="_blank" class="flex items-center justify-center w-full py-3 bg-[#f8fafc] text-gray-600 text-sm font-bold rounded-2xl hover:bg-blue-600 hover:text-white transition-all gap-2">
+                    <i class="fa-solid fa-location-arrow"></i> ルート案内を見る
+                  </a>
+                </div>
+              `;
+            shopList.innerHTML += card;
+          });
+        }
+        result.classList.remove("hidden");
+        if (window.innerWidth < 768) {
+          result.scrollIntoView({ behavior: "smooth" });
+        }
+      }
+    </script>
+  </body>
+</html>
