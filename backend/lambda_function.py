@@ -228,9 +228,41 @@ def lambda_handler(event, context):
         else:
             selected = random.choice(target_list)
         
-        # 6. 店舗検索実行
+        # ==========================================
+        # 6. 店舗検索実行 & 検索結果ゼロ件対策 (Fallback Logic)
+        # ==========================================
+        
+        # 初回検索
         shops = get_restaurants(lat, lon, selected['keyword'], search_range)
 
+        # [再試行 1] 検索結果が0件の場合、範囲を広げて再検索 (1000m)
+        if not shops and search_range < 3:
+            print(f"Retry 1: Expanding range to 1000m for {selected['keyword']}")
+            shops = get_restaurants(lat, lon, selected['keyword'], 3)
+            logic_reason += " (Retry: Range Extended)"
+
+        # [再試行 2: 最終手段] それでも0件の場合、汎用的なキーワードに変更して最大範囲(3000m)で検索
+        # ※ 地方や郊外で「該当なし」画面を出さないための安全策
+        if not shops:
+            print("Retry 2: No shops found. Switching to generic keyword.")
+            
+            # 時間帯に応じた汎用キーワードを設定
+            if 5 <= now_hour < 11:
+                fallback_keyword = "カフェ"
+            elif 11 <= now_hour < 15:
+                fallback_keyword = "ランチ"
+            elif 15 <= now_hour < 17:
+                fallback_keyword = "カフェ"
+            else:
+                fallback_keyword = "居酒屋" # または "食事"
+
+            # 半径3000m (Range 5) で広域検索
+            shops = get_restaurants(lat, lon, fallback_keyword, 5)
+            
+            # ユーザーへのメッセージも状況に合わせて更新
+            selected['keyword'] = fallback_keyword
+            selected['msg'] = "近くにピッタリのお店が見つからなかったので、周辺の人気スポットを探してきました！🏃‍♂️"
+            logic_reason += f" (Final Fallback: {fallback_keyword} 3km)"
         # 検索結果が0件の場合、範囲を広げて再検索 (リトライロジック)
         if not shops and search_range < 3:
             print(f"No shops found for {selected['keyword']}, expanding range...")
