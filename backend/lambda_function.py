@@ -5,7 +5,7 @@ import os
 import random
 import uuid
 import boto3
-import traceback  # ★ 에러 추적용 모듈 추가
+import traceback
 from datetime import datetime, timezone, timedelta
 
 # ==========================================
