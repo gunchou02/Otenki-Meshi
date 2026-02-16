@@ -19,7 +19,7 @@
     />
 
     <style>
-      /* === ベーススタイル設定 === */
+      /* === ベーススタイル === */
       body {
         font-family: "Noto Sans JP", sans-serif;
         background-color: #eef2f6;
@@ -36,25 +36,22 @@
         letter-spacing: 0.02em;
       }
 
-      /* === アプリケーションコンテナ (レイアウト修正済み) === */
+      /* === アプリケーションコンテナ === */
       .app-container {
         width: 100%;
         max-width: 1080px;
         background-color: #ffffff;
-
-        /* PC画面での高さ固定設定（スクロールバー対策） */
         height: 90vh;
         max-height: 900px;
         min-height: 600px;
-
         box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.1);
         border-radius: 2.5rem;
-        overflow: hidden; /* コンテナからはみ出す要素を隠す */
+        overflow: hidden;
         display: flex;
         flex-direction: column;
       }
 
-      /* === PC向けレイアウト設定 === */
+      /* PCレイアウト */
       @media (min-width: 860px) {
         .app-container {
           flex-direction: row;
@@ -67,19 +64,15 @@
         .content-section {
           width: 58%;
           height: 100%;
-          /* ★重要: コンテンツエリア内でのみスクロールさせる設定 */
           overflow-y: auto;
-
-          /* スクロールバーのデザイン微調整 */
           scrollbar-width: thin;
           scrollbar-color: #cbd5e1 transparent;
         }
       }
 
-      /* === モバイル向けレイアウト設定 === */
+      /* モバイルレイアウト */
       @media (max-width: 859px) {
         .app-container {
-          /* モバイルでは高さを固定せず、自然にスクロールさせる */
           height: auto;
           max-height: none;
           overflow: visible;
@@ -89,7 +82,7 @@
         }
       }
 
-      /* === [LEFT] ヒーローセクション === */
+      /* === 左側：ヒーローセクション === */
       .hero-bg {
         background: linear-gradient(145deg, #3b82f6 0%, #4f46e5 100%);
         position: relative;
@@ -101,7 +94,7 @@
         padding: 4rem 3rem;
       }
 
-      /* 背景パーティクル */
+      /* パーティクルアニメーション */
       .particle {
         position: absolute;
         opacity: 0.15;
@@ -150,7 +143,7 @@
         }
       }
 
-      /* メインアイコン浮遊アニメーション */
+      /* メインアイコン浮遊 */
       .main-float-icon {
         filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.2));
         animation: float-main 4s ease-in-out infinite;
@@ -165,13 +158,12 @@
         }
       }
 
-      /* === [RIGHT] コンテンツセクション === */
+      /* === 右側：コンテンツセクション === */
       .content-section {
         background-color: #f8fafc;
         padding: 2.5rem 3rem;
       }
 
-      /* ウェルカムグラフィック */
       .welcome-graphic {
         position: relative;
         width: 280px;
@@ -181,7 +173,6 @@
         justify-content: center;
       }
 
-      /* フローティングカード */
       .floating-card {
         position: absolute;
         background: rgba(255, 255, 255, 0.7);
@@ -224,7 +215,6 @@
         }
       }
 
-      /* メインボタン (CTA) */
       .btn-primary {
         background: linear-gradient(to right, #1f2937, #374151);
         color: white;
@@ -257,7 +247,6 @@
         left: 100%;
       }
 
-      /* ローディングアニメーション */
       .loader {
         border-top-color: #3b82f6;
         animation: spinner 0.8s linear infinite;
@@ -271,7 +260,6 @@
         }
       }
 
-      /* 表示アニメーション */
       .slide-up {
         animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         opacity: 0;
@@ -284,7 +272,6 @@
         }
       }
 
-      /* スクロールバーのカスタマイズ (WebKit) */
       .content-section::-webkit-scrollbar {
         width: 5px;
       }
@@ -293,7 +280,6 @@
         border-radius: 3px;
       }
 
-      /* 履歴リストアイテム */
       .history-item {
         transition: all 0.2s;
       }
@@ -527,91 +513,138 @@
               >TOP 5</span
             >
           </div>
-
           <div id="shopList" class="space-y-4 mb-6"></div>
         </div>
       </section>
     </main>
 
     <script>
-      // API設定
+      /**
+       * お天気メシ - フロントエンドロジック
+       * 作成者: Park Jeongbin
+       * 技術スタック: HTML5, Tailwind CSS, Vanilla JS
+       */
+
+      // APIエンドポイント設定
       const API_URL =
         "https://r68v7rgxg6.execute-api.ap-northeast-1.amazonaws.com/recommend";
 
-      // ページ読み込み時の処理
+      // アプリ初期化処理 (DOMContentLoaded)
       document.addEventListener("DOMContentLoaded", () => {
         renderHistory();
       });
 
-      // アプリリセット処理
+      // アプリの状態をリセットする関数
       function resetApp() {
         document.getElementById("result").classList.add("hidden");
+        document.getElementById("loader").classList.add("hidden");
         document.getElementById("placeholder").classList.remove("hidden");
-        document
-          .querySelector("#placeholder button")
-          .classList.remove("hidden");
-
-        // 住所表示リセット
         document.getElementById("locationNameDisplay").innerText =
           "現在地を取得中...";
         renderHistory();
       }
 
-      // メイン：位置情報取得 & APIコール
+      /**
+       * メイン処理: 現在地取得とAPI呼び出し
+       * エラーハンドリングを含む
+       */
       function getRecommendation() {
         const loader = document.getElementById("loader");
-        const result = document.getElementById("result");
         const placeholder = document.getElementById("placeholder");
 
-        // UI切り替え
+        // UIをローディング状態に切り替え
         placeholder.classList.add("hidden");
-        result.classList.add("hidden");
         loader.classList.remove("hidden");
 
+        // ブラウザのGeolocation対応チェック
         if (!navigator.geolocation) {
-          alert("ブラウザが位置情報をサポートしていません。");
+          alert(
+            "お使いのブラウザは位置情報をサポートしていません。\nChromeやSafariなどの最新ブラウザをご利用ください。",
+          );
           resetApp();
           return;
         }
 
+        // 位置情報の取得
         navigator.geolocation.getCurrentPosition(
+          // 成功時のコールバック
           async (position) => {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
 
-            // 住所取得（OpenStreetMap API）
+            // 逆ジオコーディング実行 (住所表示用)
             fetchLocationName(lat, lon);
 
-            try {
-              // API呼び出し
-              const response = await fetch(`${API_URL}?lat=${lat}&lon=${lon}`);
-              if (!response.ok) throw new Error("API call failed");
-              const data = await response.json();
-
-              saveToHistory(data);
-              displayResult(data);
-            } catch (error) {
-              console.error("Error:", error);
-              alert(
-                "データの取得に失敗しました。しばらく時間を置いてお試しください。",
-              );
-              resetApp();
-            }
+            // APIデータ取得
+            await fetchData(lat, lon);
           },
-          () => {
-            alert("位置情報の利用を許可してください。");
+          // エラー時のコールバック
+          (error) => {
+            console.error("Geolocation Error:", error);
+            let msg = "位置情報の取得に失敗しました。";
+
+            switch (error.code) {
+              case 1: // PERMISSION_DENIED
+                msg =
+                  "位置情報の利用が許可されていません。\nブラウザの設定で位置情報を「許可」にして再度お試しください。📍";
+                break;
+              case 2: // POSITION_UNAVAILABLE
+                msg =
+                  "現在地を特定できませんでした。\nGPSの信号が届きにくい場所にいる可能性があります。";
+                break;
+              case 3: // TIMEOUT
+                msg =
+                  "位置情報の取得がタイムアウトしました。\n通信環境の良い場所で再度お試しください。";
+                break;
+            }
+
+            alert(msg);
             resetApp();
           },
+          { timeout: 10000 }, // タイムアウト設定 (10秒)
         );
       }
 
-      // 住所取得関数 (Reverse Geocoding)
+      /**
+       * バックエンドAPIとの通信処理
+       * サーバーレスAPI (AWS Lambda) を呼び出す
+       */
+      async function fetchData(lat, lon) {
+        try {
+          const response = await fetch(`${API_URL}?lat=${lat}&lon=${lon}`);
+
+          // HTTPステータスコードのチェック
+          if (!response.ok) {
+            throw new Error(`Server Error: ${response.status}`);
+          }
+
+          const data = await response.json();
+
+          // 正常系: 履歴保存と画面描画
+          saveToHistory(data);
+          displayResult(data);
+        } catch (error) {
+          // 異常系: エラーログ出力とユーザー通知
+          console.error("API Fetch Error:", error);
+          alert(
+            "サーバーとの通信に失敗しました。\nしばらく時間を置いてから再度お試しください。☔️",
+          );
+          resetApp();
+        }
+      }
+
+      /**
+       * 逆ジオコーディング (座標 -> 住所変換)
+       * OpenStreetMap (Nominatim API) を使用
+       */
       async function fetchLocationName(lat, lon) {
         const displayEl = document.getElementById("locationNameDisplay");
         try {
           const response = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14&accept-language=ja`,
           );
+          if (!response.ok) throw new Error("Nominatim API error");
+
           const data = await response.json();
 
           let locationText = "現在地";
@@ -621,18 +654,17 @@
             const city = addr.city || addr.ward || addr.town || "";
             const suburb =
               addr.suburb || addr.quarter || addr.neighbourhood || "";
-
             const fullAddress = `${province} ${city} ${suburb}`.trim();
             if (fullAddress) locationText = fullAddress;
           }
           displayEl.innerText = locationText;
         } catch (e) {
-          console.error("Address fetch error:", e);
-          displayEl.innerText = "現在地 (住所取得失敗)";
+          console.warn("Address fetch failed:", e);
+          displayEl.innerText = "現在地 (住所取得不可)";
         }
       }
 
-      // 履歴保存 (LocalStorage)
+      // 履歴保存 (LocalStorageを使用)
       function saveToHistory(data) {
         const historyItem = {
           id: Date.now(),
@@ -653,11 +685,11 @@
           localStorage.getItem("otenki_history") || "[]",
         );
         history.unshift(historyItem);
-        if (history.length > 5) history = history.slice(0, 5);
+        if (history.length > 5) history = history.slice(0, 5); // 最新5件のみ保持
         localStorage.setItem("otenki_history", JSON.stringify(history));
       }
 
-      // 履歴表示
+      // 履歴のレンダリング
       function renderHistory() {
         const history = JSON.parse(
           localStorage.getItem("otenki_history") || "[]",
@@ -706,7 +738,7 @@
         historySection.classList.remove("hidden");
       }
 
-      // 天気アイコン取得ヘルパー
+      // 天気に応じたアイコンを返すヘルパー関数
       function getWeatherIcon(weather) {
         const map = {
           Clear: "☀️",
@@ -720,7 +752,7 @@
         return map[weather] || "🌤️";
       }
 
-      // 結果表示関数
+      // 結果画面の描画処理
       function displayResult(data) {
         const loader = document.getElementById("loader");
         const result = document.getElementById("result");
@@ -728,7 +760,7 @@
 
         loader.classList.add("hidden");
 
-        // 天気情報マッピング
+        // 天気情報の表示設定
         const weatherInfo = {
           Clear: {
             text: "晴れ",
@@ -780,6 +812,7 @@
           bg: "bg-blue-50",
         };
 
+        // DOM要素への反映
         document.getElementById("tempDisplay").innerText =
           `${data.temp ? Math.round(data.temp) : "--"}°`;
         document.getElementById("weatherTextDisplay").innerText = info.text;
@@ -790,11 +823,12 @@
           `w-16 h-16 rounded-2xl flex items-center justify-center text-4xl shadow-sm ${info.bg}`;
         document.getElementById("weatherMessage").innerText = data.message;
 
-        // 店舗カード生成
+        // 店舗リスト生成
         shopList.innerHTML = "";
         if (data.shops) {
           data.shops.forEach((shop, index) => {
             const delay = index * 100;
+            // Google Maps 検索用URL生成
             const query = encodeURIComponent(
               shop.name + " " + (shop.address || ""),
             );
@@ -827,7 +861,10 @@
             shopList.innerHTML += card;
           });
         }
+
+        // 画面表示切り替え
         result.classList.remove("hidden");
+        // モバイルでは結果位置までスクロール
         if (window.innerWidth < 768) {
           result.scrollIntoView({ behavior: "smooth" });
         }
