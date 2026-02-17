@@ -384,6 +384,95 @@
             下のボタンを押して、現在地周辺の<br />天気とおすすめのお店をチェック！
           </p>
 
+          <div class="w-full max-w-sm mb-4">
+            <label
+              for="locationSelect"
+              class="text-xs font-bold text-gray-400 block mb-1.5 ml-1"
+            >
+              📍 デモ用：場所を選択 (Demo Location)
+            </label>
+            <div class="relative">
+              <select
+                id="locationSelect"
+                class="w-full appearance-none bg-white border border-gray-200 text-gray-700 py-3.5 px-4 pr-8 rounded-2xl leading-tight focus:outline-none focus:bg-white focus:border-blue-500 font-bold shadow-sm text-sm transition-all cursor-pointer hover:border-blue-300"
+              >
+                <option value="current">📍 現在地 (GPS)</option>
+
+                <optgroup label="北海道・東北">
+                  <option value="43.0618,141.3545">北海道 (札幌)</option>
+                  <option value="40.8244,140.7400">青森県 (青森)</option>
+                  <option value="39.7020,141.1543">岩手県 (盛岡)</option>
+                  <option value="38.2682,140.8694">宮城県 (仙台)</option>
+                  <option value="39.7186,140.1023">秋田県 (秋田)</option>
+                  <option value="38.2554,140.3396">山形県 (山形)</option>
+                  <option value="37.7608,140.4748">福島県 (福島)</option>
+                </optgroup>
+
+                <optgroup label="関東">
+                  <option value="36.3418,140.4468">茨城県 (水戸)</option>
+                  <option value="36.5657,139.8836">栃木県 (宇都宮)</option>
+                  <option value="36.3911,139.0608">群馬県 (前橋)</option>
+                  <option value="35.8569,139.6489">埼玉県 (さいたま)</option>
+                  <option value="35.6074,140.1065">千葉県 (千葉)</option>
+                  <option value="35.6895,139.6917" selected>
+                    東京都 (新宿)
+                  </option>
+                  <option value="35.4478,139.6425">神奈川県 (横浜)</option>
+                </optgroup>
+
+                <optgroup label="中部">
+                  <option value="37.9026,139.0236">新潟県 (新潟)</option>
+                  <option value="36.6953,137.2113">富山県 (富山)</option>
+                  <option value="36.5947,136.6256">石川県 (金沢)</option>
+                  <option value="36.0641,136.2196">福井県 (福井)</option>
+                  <option value="35.6642,138.5684">山梨県 (甲府)</option>
+                  <option value="36.6486,138.1948">長野県 (長野)</option>
+                  <option value="35.3912,136.7222">岐阜県 (岐阜)</option>
+                  <option value="34.9756,138.3828">静岡県 (静岡)</option>
+                  <option value="35.1802,136.9066">愛知県 (名古屋)</option>
+                </optgroup>
+
+                <optgroup label="近畿">
+                  <option value="34.7303,136.5086">三重県 (津)</option>
+                  <option value="35.0045,135.8686">滋賀県 (大津)</option>
+                  <option value="35.0211,135.7556">京都府 (京都)</option>
+                  <option value="34.6937,135.5023">大阪府 (大阪)</option>
+                  <option value="34.6913,135.1830">兵庫県 (神戸)</option>
+                  <option value="34.6853,135.8327">奈良県 (奈良)</option>
+                  <option value="34.2260,135.1675">和歌山県 (和歌山)</option>
+                </optgroup>
+
+                <optgroup label="中国・四国">
+                  <option value="35.5036,134.2383">鳥取県 (鳥取)</option>
+                  <option value="35.4723,133.0505">島根県 (松江)</option>
+                  <option value="34.6618,133.9344">岡山県 (岡山)</option>
+                  <option value="34.3966,132.4596">広島県 (広島)</option>
+                  <option value="34.1861,131.4705">山口県 (山口)</option>
+                  <option value="34.0658,134.5594">徳島県 (徳島)</option>
+                  <option value="34.3401,134.0434">香川県 (高松)</option>
+                  <option value="33.8416,132.7657">愛媛県 (松山)</option>
+                  <option value="33.5597,133.5311">高知県 (高知)</option>
+                </optgroup>
+
+                <optgroup label="九州・沖縄">
+                  <option value="33.6064,130.4183">福岡県 (福岡)</option>
+                  <option value="33.2494,130.2988">佐賀県 (佐賀)</option>
+                  <option value="32.7448,129.8737">長崎県 (長崎)</option>
+                  <option value="32.7898,130.7417">熊本県 (熊本)</option>
+                  <option value="33.2382,131.6126">大分県 (大分)</option>
+                  <option value="31.9111,131.4239">宮崎県 (宮崎)</option>
+                  <option value="31.5602,130.5580">鹿児島県 (鹿児島)</option>
+                  <option value="26.2124,127.6809">沖縄県 (那覇)</option>
+                </optgroup>
+              </select>
+              <div
+                class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500"
+              >
+                <i class="fa-solid fa-chevron-down text-xs"></i>
+              </div>
+            </div>
+          </div>
+
           <button
             onclick="getRecommendation()"
             class="btn-primary w-full max-w-sm py-5 font-bold text-lg flex items-center justify-center gap-3 group"
@@ -545,64 +634,56 @@
       }
 
       /**
-       * メイン処理: 現在地取得とAPI呼び出し
-       * エラーハンドリングを含む
+       * メイン処理: 現在地または選択した都市で検索を実行
        */
       function getRecommendation() {
         const loader = document.getElementById("loader");
         const placeholder = document.getElementById("placeholder");
+        const locationSelect = document.getElementById("locationSelect"); // 場所選択ドロップダウンの取得
+        const selectedValue = locationSelect.value; // 選択された値（座標または識別子）を取得
 
-        // UIをローディング状態に切り替え
+        // UIをローディング表示に切り替え
         placeholder.classList.add("hidden");
         loader.classList.remove("hidden");
 
-        // ブラウザのGeolocation対応チェック
-        if (!navigator.geolocation) {
-          alert(
-            "お使いのブラウザは位置情報をサポートしていません。\nChromeやSafariなどの最新ブラウザをご利用ください。",
+        // [Case A] 「現在地 (GPS)」が選択された場合 -> ブラウザのGeolocation APIを使用
+        if (selectedValue === "current") {
+          if (!navigator.geolocation) {
+            alert(
+              "お使いのブラウザは位置情報をサポートしていません。\nChromeやSafariなどの最新ブラウザをご利用ください。",
+            );
+            resetApp();
+            return;
+          }
+
+          navigator.geolocation.getCurrentPosition(
+            async (position) => {
+              const lat = position.coords.latitude;
+              const lon = position.coords.longitude;
+
+              // 逆ジオコーディングとAPIデータ取得を実行
+              fetchLocationName(lat, lon);
+              await fetchData(lat, lon);
+            },
+            (error) => {
+              console.error("Geolocation Error:", error);
+              alert("位置情報の取得に失敗しました。");
+              resetApp();
+            },
+            { timeout: 10000 },
           );
-          resetApp();
-          return;
         }
 
-        // 位置情報の取得
-        navigator.geolocation.getCurrentPosition(
-          // 成功時のコールバック
-          async (position) => {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
+        // [Case B] 「デモ用地域」が選択された場合 -> プリセットされた座標を使用
+        else {
+          const [lat, lon] = selectedValue.split(","); // 文字列 "lat,lon" を分割して配列化
 
-            // 逆ジオコーディング実行 (住所表示用)
-            fetchLocationName(lat, lon);
-
-            // APIデータ取得
-            await fetchData(lat, lon);
-          },
-          // エラー時のコールバック
-          (error) => {
-            console.error("Geolocation Error:", error);
-            let msg = "位置情報の取得に失敗しました。";
-
-            switch (error.code) {
-              case 1: // PERMISSION_DENIED
-                msg =
-                  "位置情報の利用が許可されていません。\nブラウザの設定で位置情報を「許可」にして再度お試しください。📍";
-                break;
-              case 2: // POSITION_UNAVAILABLE
-                msg =
-                  "現在地を特定できませんでした。\nGPSの信号が届きにくい場所にいる可能性があります。";
-                break;
-              case 3: // TIMEOUT
-                msg =
-                  "位置情報の取得がタイムアウトしました。\n通信環境の良い場所で再度お試しください。";
-                break;
-            }
-
-            alert(msg);
-            resetApp();
-          },
-          { timeout: 10000 }, // タイムアウト設定 (10秒)
-        );
+          // 処理中であることをユーザーに伝えるため、意図的に僅かな遅延を追加 (UX向上)
+          setTimeout(async () => {
+            fetchLocationName(lat, lon); // 地名(住所)の取得
+            await fetchData(lat, lon); // 天気およびグルメデータの取得
+          }, 500);
+        }
       }
 
       /**
@@ -724,8 +805,8 @@
                   <div class="w-10 h-10 shrink-0 rounded-full bg-blue-50 flex items-center justify-center text-lg shadow-sm">${weatherIcon}</div>
                   <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-2 mb-0.5">
-                         <p class="text-sm font-bold text-gray-800 truncate">${item.keyword}</p>
-                         <span class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-medium">${item.temp}°C</span>
+                        <p class="text-sm font-bold text-gray-800 truncate">${item.keyword}</p>
+                        <span class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-medium">${item.temp}°C</span>
                       </div>
                       <p class="text-xs text-gray-500 truncate"><i class="fa-solid fa-store mr-1 text-gray-300"></i>${firstShop}...</p>
                       <p class="text-[10px] text-gray-300 mt-0.5">${item.date}</p>
