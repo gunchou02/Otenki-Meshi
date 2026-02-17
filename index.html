@@ -2,7 +2,10 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <title>お天気メシ - グルメ予報</title>
 
@@ -19,7 +22,7 @@
     />
 
     <style>
-      /* === ベーススタイル === */
+      /* === ベーススタイル (Base Styles) === */
       body {
         font-family: "Noto Sans JP", sans-serif;
         background-color: #eef2f6;
@@ -28,6 +31,15 @@
         align-items: center;
         justify-content: center;
         padding: 20px;
+        /* モバイル端末ではパディングを削除 */
+      }
+
+      @media (max-width: 859px) {
+        body {
+          padding: 0;
+          align-items: flex-start; /* 上部詰めで配置 */
+          background-color: #fff; /* モバイル版は視認性を高めるため背景を白に設定 */
+        }
       }
 
       .font-logo {
@@ -36,7 +48,7 @@
         letter-spacing: 0.02em;
       }
 
-      /* === アプリケーションコンテナ === */
+      /* === アプリケーションコンテナ (App Container) === */
       .app-container {
         width: 100%;
         max-width: 1080px;
@@ -51,7 +63,7 @@
         flex-direction: column;
       }
 
-      /* PCレイアウト */
+      /* PCレイアウト (Desktop Layout) */
       @media (min-width: 860px) {
         .app-container {
           flex-direction: row;
@@ -70,19 +82,32 @@
         }
       }
 
-      /* モバイルレイアウト */
+      /* モバイルレイアウト修正 (Mobile Optimization) */
       @media (max-width: 859px) {
         .app-container {
           height: auto;
+          min-height: 100vh; /* 画面全体を使用 */
           max-height: none;
+          border-radius: 0; /* 角丸設定を解除 */
+          box-shadow: none;
           overflow: visible;
         }
         .content-section {
           overflow-y: visible;
+          padding: 2rem 1.5rem; /* 左右の余白を調整 */
+          min-height: 60vh; /* コンテンツ領域の最小高さを確保 */
+          background-color: #fff; /* 背景色を統一 */
+          border-radius: 2rem 2rem 0 0; /* 上部のみ角丸に設定 */
+          margin-top: -2rem; /* ヘッダーとの一体感を出すためマージンを調整 */
+          position: relative;
+          z-index: 20;
+        }
+        .hero-section {
+          padding: 3rem 1.5rem 5rem 1.5rem; /* コンテンツの重なりを考慮し、下部パディングを拡張 */
         }
       }
 
-      /* === 左側：ヒーローセクション === */
+      /* === 左側：ヒーローセクション (Hero Section) === */
       .hero-bg {
         background: linear-gradient(145deg, #3b82f6 0%, #4f46e5 100%);
         position: relative;
@@ -143,7 +168,7 @@
         }
       }
 
-      /* メインアイコン浮遊 */
+      /* メインアイコン浮遊アニメーション */
       .main-float-icon {
         filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.2));
         animation: float-main 4s ease-in-out infinite;
@@ -158,7 +183,7 @@
         }
       }
 
-      /* === 右側：コンテンツセクション === */
+      /* === 右側：コンテンツセクション (Content Section) === */
       .content-section {
         background-color: #f8fafc;
         padding: 2.5rem 3rem;
@@ -171,6 +196,19 @@
         display: flex;
         align-items: center;
         justify-content: center;
+      }
+
+      /* モバイル用グラフィックサイズ調整 */
+      @media (max-width: 480px) {
+        .welcome-graphic {
+          width: 220px;
+          height: 220px;
+          margin-bottom: 1rem;
+        }
+        .floating-card {
+          font-size: 0.65rem;
+          padding: 0.5rem 0.75rem;
+        }
       }
 
       .floating-card {
@@ -227,6 +265,9 @@
       .btn-primary:hover {
         transform: translateY(-3px);
         box-shadow: 0 15px 30px -5px rgba(31, 41, 55, 0.4);
+      }
+      .btn-primary:active {
+        transform: scale(0.98); /* モバイル操作時のタッチフィードバックを追加 */
       }
       .btn-primary::after {
         content: "";
@@ -375,7 +416,9 @@
             </div>
           </div>
 
-          <h2 class="text-2xl font-bold text-gray-800 mb-3">
+          <h2
+            class="text-2xl font-bold text-gray-800 mb-3 text-center md:text-left"
+          >
             今日のグルメを予報します❗️
           </h2>
           <p
@@ -389,14 +432,14 @@
               for="locationSelect"
               class="text-xs font-bold text-gray-400 block mb-1.5 ml-1"
             >
-              📍 場所を選択 📍
+              📍 場所を選択
             </label>
             <div class="relative">
               <select
                 id="locationSelect"
                 class="w-full appearance-none bg-white border border-gray-200 text-gray-700 py-3.5 px-4 pr-8 rounded-2xl leading-tight focus:outline-none focus:bg-white focus:border-blue-500 font-bold shadow-sm text-sm transition-all cursor-pointer hover:border-blue-300"
               >
-                <option value="current">📍 現在地 (GPS) 📍</option>
+                <option value="current">📍 現在地 (GPS)</option>
 
                 <optgroup label="北海道・東北">
                   <option value="43.0618,141.3545">北海道</option>
@@ -637,8 +680,8 @@
       function getRecommendation() {
         const loader = document.getElementById("loader");
         const placeholder = document.getElementById("placeholder");
-        const locationSelect = document.getElementById("locationSelect"); // 場所選択ドロップダウンの取得
-        const selectedValue = locationSelect.value; // 選択された値（座標または識別子）を取得
+        const locationSelect = document.getElementById("locationSelect"); // 場所選択ドロップダウン要素の取得
+        const selectedValue = locationSelect.value; // 選択された値（座標または識別子）の取得
 
         // UIをローディング表示に切り替え
         placeholder.classList.add("hidden");
@@ -672,7 +715,7 @@
           );
         }
 
-        // [Case B] 「デモ用地域」が選択された場合 -> プリセットされた座標を使用
+        // [Case B] 「デモ用地域」が選択された場合 -> プリセット座標を使用
         else {
           const [lat, lon] = selectedValue.split(","); // 文字列 "lat,lon" を分割して配列化
 
