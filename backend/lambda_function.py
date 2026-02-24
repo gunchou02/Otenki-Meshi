@@ -209,12 +209,12 @@ def lambda_handler(event, context):
 
             # [B] 月曜日のランチ (憂鬱な気分を吹き飛ばす)
             elif weekday == 0 and 11 <= now_hour <= 14:
-                 target_list = [
+                target_list = [
                     {"keyword": "激辛", "msg": "月曜日の憂鬱を吹き飛ばす！激辛料理はいかが？🌶️"},
                     {"keyword": "カツ丼", "msg": "今週も「勝つ」！カツ丼でエネルギーチャージ💪"},
                     {"keyword": "カレー", "msg": "スパイスの力で脳を活性化させましょう！"}
-                 ]
-                 logic_reason = "Priority 3: Monday Lunch"
+                ]
+                logic_reason = "Priority 3: Monday Lunch"
 
             # [C] 通常のランチタイム (11:00 ~ 13:59)
             elif 11 <= now_hour <= 13:
