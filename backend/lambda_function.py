@@ -333,5 +333,3 @@ def lambda_handler(event, context):
                 'message': str(e)
             }, ensure_ascii=False)
         }
-
-        # ss
