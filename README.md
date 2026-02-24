@@ -15,7 +15,7 @@
 </p>
 
 ## 🔗 Live Demo
-**[🚀 アプリを使ってみる (ここをクリック)](http://otenki-meshi-website-tf-20260224042018828000000001.s3-website-ap-northeast-1.amazonaws.com)** *(AWS S3 Static Website Hosting環境で稼働中)*
+**[🚀 アプリを使ってみる (ここをクリック)]([http://otenki-meshi-website-tf-20260224042018828000000001.s3-website-ap-northeast-1.amazonaws.com](https://otenki-meshi-website-tf-20260224042018828000000001.s3.ap-northeast-1.amazonaws.com/frontend/index.html))** *(AWS S3 Static Website Hosting環境で稼働中)*
 
 ## 📖 プロジェクト概要 (Overview)
 「今日のお昼、何を食べよう？」 そんな日常の些細な意思決定コストを下げるために開発されたWebアプリケーションです。
