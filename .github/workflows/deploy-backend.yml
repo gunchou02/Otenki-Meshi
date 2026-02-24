@@ -21,11 +21,10 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-1
-
-      - name: Zip and Update Lambda
+      - name: Create Zip File
         run: |
           cd backend
-          zip -r deploy.zip .
-          aws lambda update-function-code \
-            --function-name OtenkiMeshi-Backend \
-            --zip-file fileb://deploy.zip
+          zip -r ../backend.zip .
+
+      - name: Update Lambda Code
+        run: aws lambda update-function-code --function-name OtenkiMeshi_Backend_TF --zip-file fileb://backend.zip
