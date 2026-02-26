@@ -105,7 +105,7 @@ AWSマネジメントコンソールでの手動構築によるヒューマン�
 
 ## 👤 Author
 
-Name: PARK JEONGBIN ( パク　ジョンビン )
+Name: PARK JEONGBIN ( パク ジョンビン )
 
 Role: Aspiring Cloud/Infrastructure Engineer
 
