@@ -15,7 +15,7 @@
 </p>
 
 ## 🔗 Live Demo
-**[🚀 アプリを使ってみる (ここをクリック)]([https://d2utr41h5q559l.cloudfront.net/])** *(AWS S3 Static Website Hosting)*
+**[🚀 アプリを使ってみる (ここをクリック)](https://d2utr41h5q559l.cloudfront.net/)** *(CloudFront HTTPS配信 / S3)*
 
 ## 📖 プロジェクト概要 (Overview)
 「今日のお昼、何を食べよう？」 そんな日常の些細な意思決定コストを下げるために開発されたWebアプリケーションです。
