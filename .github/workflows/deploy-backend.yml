@@ -13,18 +13,26 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # ★修正: v3 -> v4
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4 # ★修正: v2 -> v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-1
+
       - name: Create Zip File
         run: |
           cd backend
           zip -r ../backend.zip .
 
+      # 【設計メモ】Lambda「インフラ定義」はTerraformが真実、
+      #            「コードの中身」はこのCIが真実、という住み分け。
+      #            main.tf 側で lifecycle.ignore_changes を設定済みなので、
+      #            terraform apply がこのデプロイを巻き戻すことはない。
       - name: Update Lambda Code
-        run: aws lambda update-function-code --function-name OtenkiMeshi_Backend_TF --zip-file fileb://backend.zip
+        run: |
+          aws lambda update-function-code \
+            --function-name OtenkiMeshi_Backend_TF \
+            --zip-file fileb://backend.zip

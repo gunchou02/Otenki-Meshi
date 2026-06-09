@@ -1,0 +1,11 @@
+# このファイルは「お手本」なのでGitにコミットしてOK。
+# 実際の値は terraform.tfvars にコピーして書く。
+# terraform.tfvars は .gitignore 済み (*.tfvars) なのでGitには上がらない。
+#
+# 使い方:
+#   cp terraform.tfvars.example terraform.tfvars
+#   # terraform.tfvars を開いて、再発行した新しいキーを貼る
+#   terraform plan
+
+weather_api_key   = "ここに再発行したOpenWeatherMapのキー"
+hotpepper_api_key = "ここに再発行したHotPepperのキー"
