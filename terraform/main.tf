@@ -1,15 +1,14 @@
 provider "aws" {
-  region = "ap-northeast-1" # 東京リージョン
+  region = "ap-northeast-1"
 }
 
 # ==========================================
-# 0. 変数定義 (Variables) ★修正: APIキーをコードから分離
+# 0. 変数定義 (Variables)
 # ==========================================
-# 値は terraform.tfvars に書く。tfvars は .gitignore 済みなのでGitに上がらない。
 variable "weather_api_key" {
   type        = string
   description = "OpenWeatherMap API Key"
-  sensitive   = true # ログやplan出力でマスクされる
+  sensitive   = true
 }
 
 variable "hotpepper_api_key" {
@@ -19,11 +18,11 @@ variable "hotpepper_api_key" {
 }
 
 # ==========================================
-# 1. DynamoDB (検索ログ保存用)
+# 1. DynamoDB
 # ==========================================
 resource "aws_dynamodb_table" "otenki_log" {
   name         = "OtenkiMeshi_Log_TF"
-  billing_mode = "PAY_PER_REQUEST" # オンデマンド (Free Tier親和性)
+  billing_mode = "PAY_PER_REQUEST"
   hash_key     = "request_id"
 
   attribute {
@@ -38,7 +37,7 @@ resource "aws_dynamodb_table" "otenki_log" {
 }
 
 # ==========================================
-# 2. IAM Role (Lambda実行権限)
+# 2. IAM Role (Lambda)
 # ==========================================
 resource "aws_iam_role" "lambda_role" {
   name = "otenki_lambda_role_tf"
@@ -53,8 +52,6 @@ resource "aws_iam_role" "lambda_role" {
   })
 }
 
-# ★修正: 最小権限の原則。コードが実際に使うのは put_item のみ。
-#        対象も "*" ではなく、このテーブルのARNに限定する。
 resource "aws_iam_role_policy" "lambda_dynamodb_policy" {
   name = "otenki_lambda_dynamodb_policy_tf"
   role = aws_iam_role.lambda_role.id
@@ -71,14 +68,13 @@ resource "aws_iam_role_policy" "lambda_dynamodb_policy" {
   })
 }
 
-# ★修正: CloudWatch Logsへの出力はAWS管理ポリシーを利用 (logs:* を自前で書かない)
 resource "aws_iam_role_policy_attachment" "lambda_logs" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 # ==========================================
-# 3. Lambda Function (バックエンドロジック)
+# 3. Lambda
 # ==========================================
 data "archive_file" "lambda_zip" {
   type        = "zip"
@@ -91,12 +87,11 @@ resource "aws_lambda_function" "backend" {
   function_name = "OtenkiMeshi_Backend_TF"
   role          = aws_iam_role.lambda_role.arn
   handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.12" # ★修正: 3.9はEOLが近い。サポート期間の長い版へ
+  runtime       = "python3.12"
   timeout       = 10
 
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
-  # ★修正: APIキーは変数経由。テーブル名もここで注入し、コードの定数を排除。
   environment {
     variables = {
       WEATHER_API_KEY   = var.weather_api_key
@@ -105,15 +100,15 @@ resource "aws_lambda_function" "backend" {
     }
   }
 
-  # ★修正: GitHub Actions(CI)がコードを更新する運用と共存させる。
-  #        terraform apply がCIの更新を巻き戻さないよう、コード差分は無視。
-  #        → インフラの真実はTerraform、コードの真実はCI、という住み分け。
+  # コードはCIが更新する。Terraformはコード差分を無視 (= インフラとコードの責任分離)
   lifecycle {
     ignore_changes = [filename, source_code_hash]
   }
 }
 
-# ★追加: Lambdaのロググループを明示し、保持期間を設定 (放置するとログが無限に溜まる)
+# ※ NOTE: このロググループはAWSに既存 (Lambdaが過去に自動作成済み)。
+#         apply前に必ず terraform import で取り込むこと:
+#         terraform import aws_cloudwatch_log_group.lambda_logs /aws/lambda/OtenkiMeshi_Backend_TF
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   name              = "/aws/lambda/${aws_lambda_function.backend.function_name}"
   retention_in_days = 14
@@ -127,7 +122,7 @@ resource "aws_apigatewayv2_api" "http_api" {
   protocol_type = "HTTP"
 
   cors_configuration {
-    allow_origins = ["*"] # ※本番では CloudFront のドメインに限定するのが望ましい
+    allow_origins = ["*"] # 本番では CloudFront ドメインに絞るのが理想
     allow_methods = ["GET", "OPTIONS"]
     allow_headers = ["Content-Type"]
   }
@@ -160,64 +155,139 @@ resource "aws_lambda_permission" "api_gw" {
 }
 
 # ==========================================
-# 5. S3 Bucket (フロントエンド・ホスティング用)
+# 5. S3 Bucket (★ 非公開に戻す / CloudFront OAC からのみ読める)
 # ==========================================
-# ※ NOTE: 本来は S3 を非公開にして CloudFront(OAC) 経由のみ許可するのが現在の定石。
-#         今は動作中のデモを壊さないため公開設定のままにしているが、
-#         次のステップで CloudFront を Terraform に取り込み、ここを private 化する。
 resource "aws_s3_bucket" "frontend" {
   bucket_prefix = "otenki-meshi-website-tf-"
 }
 
-resource "aws_s3_bucket_website_configuration" "website" {
-  bucket = aws_s3_bucket.frontend.id
-
-  index_document {
-    suffix = "index.html"
-  }
-}
-
+# ★ 全部 true に戻す = パブリック完全ブロック (定石)
 resource "aws_s3_bucket_public_access_block" "public_access" {
   bucket = aws_s3_bucket.frontend.id
 
-  block_public_acls       = false
-  block_public_policy     = false
-  ignore_public_acls      = false
-  restrict_public_buckets = false
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
-resource "aws_s3_bucket_policy" "public_read" {
-  bucket     = aws_s3_bucket.frontend.id
-  depends_on = [aws_s3_bucket_public_access_block.public_access]
+# ★ バケットポリシーは「CloudFrontサービスプリンシパル + この配信からのみ」許可
+resource "aws_s3_bucket_policy" "cloudfront_only" {
+  bucket = aws_s3_bucket.frontend.id
+
+  # 配信ARNが必要なので明示的に依存させる
+  depends_on = [
+    aws_cloudfront_distribution.frontend_cdn,
+    aws_s3_bucket_public_access_block.public_access,
+  ]
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "PublicReadGetObject"
+        Sid       = "AllowCloudFrontServicePrincipalReadOnly"
         Effect    = "Allow"
-        Principal = "*"
+        Principal = { Service = "cloudfront.amazonaws.com" }
         Action    = "s3:GetObject"
         Resource  = "${aws_s3_bucket.frontend.arn}/*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.frontend_cdn.arn
+          }
+        }
       }
     ]
   })
 }
 
 # ==========================================
-# 6. Outputs
+# 6. CloudFront + OAC (★ 復活させる)
+# ==========================================
+resource "aws_cloudfront_origin_access_control" "frontend_oac" {
+  name                              = "otenki-meshi-oac-tf"
+  description                       = "OAC for Otenki-Meshi S3 origin"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+resource "aws_cloudfront_distribution" "frontend_cdn" {
+  enabled             = true
+  is_ipv6_enabled     = true
+  default_root_object = "index.html"
+  comment             = "Otenki-Meshi CDN (Terraform-managed)"
+  price_class         = "PriceClass_200" # アジア+北米+欧州 (Allより安い)
+
+  origin {
+    # ★ OAC使用時は website endpoint ではなく REST endpoint (bucket_regional_domain_name) を指定
+    domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
+    origin_id                = "S3-OtenkiMeshi"
+    origin_access_control_id = aws_cloudfront_origin_access_control.frontend_oac.id
+  }
+
+  default_cache_behavior {
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "S3-OtenkiMeshi"
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = true
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 3600
+    max_ttl     = 86400
+  }
+
+  # SPA的に深いパスへ来てもindex.htmlを返す (壊れたリンクで黒画面を避ける)
+  custom_error_response {
+    error_code            = 403
+    response_code         = 200
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 0
+  }
+  custom_error_response {
+    error_code            = 404
+    response_code         = 200
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 0
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true # *.cloudfront.net のデフォルト証明書
+  }
+
+  tags = {
+    Project   = "OtenkiMeshi"
+    ManagedBy = "Terraform"
+  }
+}
+
+# ==========================================
+# 7. Outputs
 # ==========================================
 output "api_endpoint" {
-  description = "Backend API Endpoint URL"
+  description = "Backend API Endpoint"
   value       = "${aws_apigatewayv2_api.http_api.api_endpoint}/recommend"
 }
 
-output "website_url" {
-  description = "Frontend S3 Website URL"
-  value       = aws_s3_bucket_website_configuration.website.website_endpoint
+output "cloudfront_url" {
+  description = "Frontend CloudFront URL (HTTPS) ★これを使う"
+  value       = "https://${aws_cloudfront_distribution.frontend_cdn.domain_name}"
 }
 
 output "s3_bucket_name" {
-  description = "Created S3 Bucket Name"
+  description = "S3 Bucket Name (now private, only CloudFront can read)"
   value       = aws_s3_bucket.frontend.id
 }
