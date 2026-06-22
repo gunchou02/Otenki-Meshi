@@ -149,19 +149,39 @@ def get_restaurants_for_keywords(
     excluded_shop_keys=None,
 ):
     shops = []
+    matched_keyword = None
     for keyword in keywords[:MAX_SEARCH_KEYWORDS]:
         found = get_restaurants(lat, lon, keyword, search_range)
         if found:
             random.shuffle(found)
+            before_count = len(shops)
             _merge_unique_shops(
                 shops,
                 found,
                 limit=limit,
                 excluded_shop_keys=excluded_shop_keys,
             )
+            if len(shops) > before_count and matched_keyword is None:
+                matched_keyword = keyword
         if len(shops) >= limit:
             break
-    return shops
+    return shops, matched_keyword
+
+
+def _apply_matched_keyword(rec, matched_keyword, keyword, msg, reason, logic_reason):
+    if not matched_keyword or matched_keyword == keyword:
+        return keyword, msg, reason, logic_reason
+
+    matched = recommender.get_candidate(matched_keyword)
+    if matched is None:
+        return keyword, msg, reason, logic_reason
+
+    return (
+        matched["keyword"],
+        matched["msg"],
+        f"検索結果に合わせて「{matched['keyword']}」に切り替えました。",
+        f"{logic_reason} (matched keyword: {matched['keyword']})",
+    )
 
 
 def save_log_to_dynamodb(lat, lon, weather, temp, keyword, logic):
@@ -218,17 +238,20 @@ def lambda_handler(event, context):
 
         # --- 検索 + フォールバック ---
         search_keywords = rec.get("search_keywords") or [keyword]
-        shops = get_restaurants_for_keywords(
+        shops, matched_keyword = get_restaurants_for_keywords(
             lat,
             lon,
             search_keywords,
             search_range,
             excluded_shop_keys=recent_shops,
         )
+        keyword, msg, reason, logic_reason = _apply_matched_keyword(
+            rec, matched_keyword, keyword, msg, reason, logic_reason
+        )
 
         # [再試行1] 0件なら、まず半径を広げる
         if not shops and search_range < 3:
-            shops = get_restaurants_for_keywords(
+            shops, matched_keyword = get_restaurants_for_keywords(
                 lat,
                 lon,
                 search_keywords,
@@ -236,12 +259,15 @@ def lambda_handler(event, context):
                 excluded_shop_keys=recent_shops,
             )
             logic_reason += " (range extended)"
+            keyword, msg, reason, logic_reason = _apply_matched_keyword(
+                rec, matched_keyword, keyword, msg, reason, logic_reason
+            )
 
         # [再試行2] それでも0件なら、汎用ワードに逃げる前に
         #           「次に点数の高い候補」を順に試す (テーマを保ったままフォールバック)
         if not shops:
             for alt in rec["ranked_candidates"][1:6]:
-                shops = get_restaurants_for_keywords(
+                shops, matched_keyword = get_restaurants_for_keywords(
                     lat,
                     lon,
                     [alt["keyword"]],
@@ -258,7 +284,7 @@ def lambda_handler(event, context):
         # [最終] まだ0件なら時間帯ベースの汎用ワードで広域検索
         if not shops:
             generic = "ランチ" if 11 <= now.hour < 15 else "カフェ" if now.hour < 17 else "居酒屋"
-            shops = get_restaurants_for_keywords(
+            shops, matched_keyword = get_restaurants_for_keywords(
                 lat,
                 lon,
                 [generic],
@@ -272,7 +298,10 @@ def lambda_handler(event, context):
 
         # 除外しすぎて0件になった場合だけ、UX優先で最近見た店も許可する。
         if not shops and recent_shops:
-            shops = get_restaurants_for_keywords(lat, lon, search_keywords, 5)
+            shops, matched_keyword = get_restaurants_for_keywords(lat, lon, search_keywords, 5)
+            keyword, msg, reason, logic_reason = _apply_matched_keyword(
+                rec, matched_keyword, keyword, msg, reason, logic_reason
+            )
             logic_reason += " (recent shop exclusion relaxed)"
 
         save_log_to_dynamodb(lat, lon, weather, temp, keyword, logic_reason)

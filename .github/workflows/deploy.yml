@@ -22,14 +22,20 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-1
 
-      - name: Sync frontend files to S3
+      - name: Sync frontend assets to S3
         run: |
           aws s3 sync frontend/ s3://${{ secrets.S3_BUCKET_NAME }} \
-            --delete
+            --delete \
+            --exclude "index.html"
+
+      - name: Upload index.html without browser/CDN stale cache
+        run: |
+          aws s3 cp frontend/index.html s3://${{ secrets.S3_BUCKET_NAME }}/index.html \
+            --content-type "text/html" \
+            --cache-control "no-cache, no-store, must-revalidate"
 
       - name: Invalidate CloudFront cache
         if: ${{ env.CLOUDFRONT_DISTRIBUTION_ID != '' }}
-        continue-on-error: true
         run: |
           aws cloudfront create-invalidation \
             --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \

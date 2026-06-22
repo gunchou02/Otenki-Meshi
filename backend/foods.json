@@ -55,11 +55,6 @@
   {"keyword": "餃子", "category": "chinese", "msg": "肉汁たっぷりの餃子でご飯が進む！🥟", "aff": {"t_dinner": 0.5, "t_late": 0.5}},
   {"keyword": "中華料理", "category": "chinese", "msg": "みんなで食べやすい中華料理も今の気分に合いそうです。", "aff": {"t_lunch": 0.4, "t_dinner": 0.5, "cloudy": 0.2}},
 
-  {"keyword": "駅近 ランチ", "category": "indoor", "msg": "雨に濡れにくい駅近のお店を厳選しました☔️", "aff": {"rainy": 0.8, "t_lunch": 0.6}},
-  {"keyword": "地下街 グルメ", "category": "indoor", "msg": "雨の日は移動しやすい地下街グルメが便利です。", "aff": {"rainy": 0.9, "t_lunch": 0.4, "t_dinner": 0.3}},
-  {"keyword": "駅ビル レストラン", "category": "indoor", "msg": "天気が崩れる日は駅ビル内のお店が安心です。", "aff": {"rainy": 0.8, "cloudy": 0.3, "t_lunch": 0.4, "t_dinner": 0.4}},
-  {"keyword": "デリバリー", "category": "indoor", "msg": "雨足が強いですね。デリバリー対応店はいかが？", "aff": {"rainy": 0.7}},
-
   {"keyword": "カフェ モーニング", "category": "morning", "msg": "少し早起きして、優雅なモーニング☕️", "aff": {"t_morning": 1.0}},
   {"keyword": "パン屋", "category": "morning", "msg": "焼きたてパンの香りで一日をスタート🥐", "aff": {"t_morning": 0.8}},
   {"keyword": "おにぎり", "category": "morning", "msg": "日本の朝はやっぱりおにぎりとお味噌汁🍙", "aff": {"t_morning": 0.6}},
