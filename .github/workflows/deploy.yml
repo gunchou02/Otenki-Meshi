@@ -34,8 +34,9 @@ jobs:
             --content-type "text/html" \
             --cache-control "no-cache, no-store, must-revalidate"
 
-      - name: Invalidate CloudFront cache
+      - name: Best-effort CloudFront cache invalidation
         if: ${{ env.CLOUDFRONT_DISTRIBUTION_ID != '' }}
+        continue-on-error: true
         run: |
           aws cloudfront create-invalidation \
             --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
