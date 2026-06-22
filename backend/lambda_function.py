@@ -22,6 +22,7 @@ DEFAULT_LAT = "35.690921"
 DEFAULT_LON = "139.700258"
 MAX_RECENT_KEYWORDS = 8
 MAX_SEARCH_KEYWORDS = 3
+MAX_RECENT_SHOPS = 30
 
 try:
     dynamodb = boto3.resource('dynamodb')
@@ -60,6 +61,19 @@ def _parse_recent(value):
     return recent
 
 
+def _parse_recent_shops(value):
+    shop_ids = []
+    for shop_id in (value or "").split(","):
+        shop_id = shop_id.strip()
+        if not shop_id or len(shop_id) > 80:
+            continue
+        if shop_id not in shop_ids:
+            shop_ids.append(shop_id)
+        if len(shop_ids) >= MAX_RECENT_SHOPS:
+            break
+    return set(shop_ids)
+
+
 def get_weather_data(lat, lon):
     try:
         if not WEATHER_API_KEY:
@@ -88,10 +102,13 @@ def _shop_key(shop):
     return shop.get('id') or f"{shop.get('name', '')}:{shop.get('address', '')}"
 
 
-def _merge_unique_shops(current, shops, limit=5):
+def _merge_unique_shops(current, shops, limit=5, excluded_shop_keys=None):
+    excluded_shop_keys = set(excluded_shop_keys or [])
     seen = {_shop_key(shop) for shop in current}
     for shop in shops:
         key = _shop_key(shop)
+        if key in excluded_shop_keys:
+            continue
         if key in seen:
             continue
         current.append(shop)
@@ -123,13 +140,25 @@ def get_restaurants(lat, lon, keyword, search_range=3, count=20):
         return []
 
 
-def get_restaurants_for_keywords(lat, lon, keywords, search_range=3, limit=5):
+def get_restaurants_for_keywords(
+    lat,
+    lon,
+    keywords,
+    search_range=3,
+    limit=5,
+    excluded_shop_keys=None,
+):
     shops = []
     for keyword in keywords[:MAX_SEARCH_KEYWORDS]:
         found = get_restaurants(lat, lon, keyword, search_range)
         if found:
             random.shuffle(found)
-            _merge_unique_shops(shops, found, limit=limit)
+            _merge_unique_shops(
+                shops,
+                found,
+                limit=limit,
+                excluded_shop_keys=excluded_shop_keys,
+            )
         if len(shops) >= limit:
             break
     return shops
@@ -168,6 +197,7 @@ def lambda_handler(event, context):
 
         # 直近で出した提案 (フロントから "recent=ラーメン,焼肉" のように渡す)。同じ提案の連続を防ぐ。
         recent = _parse_recent(params.get('recent'))
+        recent_shops = _parse_recent_shops(params.get('recent_shops'))
 
         weather, temp, humidity = get_weather_data(lat, lon)
 
@@ -188,18 +218,36 @@ def lambda_handler(event, context):
 
         # --- 検索 + フォールバック ---
         search_keywords = rec.get("search_keywords") or [keyword]
-        shops = get_restaurants_for_keywords(lat, lon, search_keywords, search_range)
+        shops = get_restaurants_for_keywords(
+            lat,
+            lon,
+            search_keywords,
+            search_range,
+            excluded_shop_keys=recent_shops,
+        )
 
         # [再試行1] 0件なら、まず半径を広げる
         if not shops and search_range < 3:
-            shops = get_restaurants_for_keywords(lat, lon, search_keywords, 3)
+            shops = get_restaurants_for_keywords(
+                lat,
+                lon,
+                search_keywords,
+                3,
+                excluded_shop_keys=recent_shops,
+            )
             logic_reason += " (range extended)"
 
         # [再試行2] それでも0件なら、汎用ワードに逃げる前に
         #           「次に点数の高い候補」を順に試す (テーマを保ったままフォールバック)
         if not shops:
             for alt in rec["ranked_candidates"][1:6]:
-                shops = get_restaurants_for_keywords(lat, lon, [alt["keyword"]], 5)
+                shops = get_restaurants_for_keywords(
+                    lat,
+                    lon,
+                    [alt["keyword"]],
+                    5,
+                    excluded_shop_keys=recent_shops,
+                )
                 if shops:
                     keyword = alt["keyword"]
                     msg = alt["msg"]
@@ -210,11 +258,22 @@ def lambda_handler(event, context):
         # [最終] まだ0件なら時間帯ベースの汎用ワードで広域検索
         if not shops:
             generic = "ランチ" if 11 <= now.hour < 15 else "カフェ" if now.hour < 17 else "居酒屋"
-            shops = get_restaurants_for_keywords(lat, lon, [generic], 5)
+            shops = get_restaurants_for_keywords(
+                lat,
+                lon,
+                [generic],
+                5,
+                excluded_shop_keys=recent_shops,
+            )
             keyword = generic
             msg = "近くにお店が見つからなかったので、周辺の人気スポットを探してきました！🏃"
             reason = f"周辺店舗の見つかりやすさを優先して「{generic}」で探しました。"
             logic_reason += f" (final fallback: {generic})"
+
+        # 除外しすぎて0件になった場合だけ、UX優先で最近見た店も許可する。
+        if not shops and recent_shops:
+            shops = get_restaurants_for_keywords(lat, lon, search_keywords, 5)
+            logic_reason += " (recent shop exclusion relaxed)"
 
         save_log_to_dynamodb(lat, lon, weather, temp, keyword, logic_reason)
 

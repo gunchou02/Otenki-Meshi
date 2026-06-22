@@ -68,6 +68,13 @@ class RecommenderTest(unittest.TestCase):
             recent_top["category"],
             with_recent["ranked_candidates"][0]["category"],
         )
+        self.assertNotIn(
+            recent_top["category"],
+            {
+                recommender.get_candidate(keyword)["category"]
+                for keyword in with_recent["search_keywords"][:3]
+            },
+        )
 
 
 if __name__ == "__main__":

@@ -737,6 +737,7 @@
             lat,
             lon,
             recent: getRecentKeywords().join(","),
+            recent_shops: getRecentShopIds().join(","),
           });
           const response = await fetch(`${API_URL}?${params.toString()}`);
 
@@ -894,6 +895,25 @@
           ].slice(0, 5);
         } catch (error) {
           console.warn("History parse failed:", error);
+          return [];
+        }
+      }
+
+      function getRecentShopIds() {
+        try {
+          const history = JSON.parse(
+            localStorage.getItem("otenki_history") || "[]",
+          );
+          return [
+            ...new Set(
+              history
+                .flatMap((item) => item.shops || [])
+                .map((shop) => shop.id)
+                .filter((id) => typeof id === "string" && id),
+            ),
+          ].slice(0, 30);
+        } catch (error) {
+          console.warn("Shop history parse failed:", error);
           return [];
         }
       }

@@ -159,13 +159,16 @@ def _recent_categories(recent):
     return categories
 
 
-def _diverse_keywords(scored, limit=5):
+def _diverse_keywords(scored, limit=5, excluded_categories=None):
     """検索候補はカテゴリを散らして、似た検索語の連打を避ける。"""
+    excluded_categories = set(excluded_categories or [])
     keywords = []
     used_categories = set()
 
     for candidate, _score_value, _contrib in scored:
         category = candidate["category"]
+        if category in excluded_categories:
+            continue
         if category in used_categories:
             continue
         keywords.append(candidate["keyword"])
@@ -174,8 +177,12 @@ def _diverse_keywords(scored, limit=5):
             return keywords
 
     for candidate, _score_value, _contrib in scored:
+        category = candidate["category"]
+        if category in used_categories:
+            continue
         if candidate["keyword"] not in keywords:
             keywords.append(candidate["keyword"])
+            used_categories.add(category)
         if len(keywords) >= limit:
             break
     return keywords
@@ -225,11 +232,17 @@ def recommend(temp, humidity, weather, hour, weekday, recent=None, top_k=8):
         if c["keyword"] in recent:
             s *= 0.25
         elif c["category"] in recent_categories:
-            s *= 0.65
+            s *= 0.2
         scored.append((c, s, contrib))
 
     scored.sort(key=lambda x: (x[1], x[0]["keyword"]), reverse=True)
-    top = scored[:top_k]
+    fresh_scored = [
+        item
+        for item in scored
+        if item[0]["keyword"] not in recent
+        and item[0]["category"] not in recent_categories
+    ]
+    top = (fresh_scored if len(fresh_scored) >= max(3, top_k // 2) else scored)[:top_k]
 
     winner = _softmax_pick([t[0] for t in top], [t[1] for t in top])
     winner_contrib = next(contrib for (c, s, contrib) in top if c is winner)
@@ -251,9 +264,10 @@ def recommend(temp, humidity, weather, hour, weekday, recent=None, top_k=8):
             }
             for (c, s, contrib) in scored
         ],
-        "search_keywords": _diverse_keywords(scored, limit=5),
+        "search_keywords": _diverse_keywords(scored, limit=5, excluded_categories=recent_categories),
         "debug": {
             "signals": sig,
+            "recent_categories": sorted(recent_categories),
             "top": [(c["keyword"], c["category"], round(s, 3)) for (c, s, contrib) in top],
         },
     }
