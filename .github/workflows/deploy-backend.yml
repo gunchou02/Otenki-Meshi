@@ -25,7 +25,9 @@ jobs:
       - name: Create Zip File
         run: |
           cd backend
-          zip -r ../backend.zip .
+          zip -r ../backend.zip . \
+            -x "__pycache__/*" \
+            -x "test_*.py"
 
       # 【設計メモ】Lambda「インフラ定義」はTerraformが真実、
       #            「コードの中身」はこのCIが真実、という住み分け。

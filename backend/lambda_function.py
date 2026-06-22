@@ -21,6 +21,7 @@ HTTP_TIMEOUT = 5
 DEFAULT_LAT = "35.690921"
 DEFAULT_LON = "139.700258"
 MAX_RECENT_KEYWORDS = 8
+MAX_SEARCH_KEYWORDS = 3
 
 try:
     dynamodb = boto3.resource('dynamodb')
@@ -83,27 +84,55 @@ def get_weather_data(lat, lon):
         return "Clear", 20.0, 50
 
 
-def get_restaurants(lat, lon, keyword, search_range=3):
+def _shop_key(shop):
+    return shop.get('id') or f"{shop.get('name', '')}:{shop.get('address', '')}"
+
+
+def _merge_unique_shops(current, shops, limit=5):
+    seen = {_shop_key(shop) for shop in current}
+    for shop in shops:
+        key = _shop_key(shop)
+        if key in seen:
+            continue
+        current.append(shop)
+        seen.add(key)
+        if len(current) >= limit:
+            break
+    return current
+
+
+def get_restaurants(lat, lon, keyword, search_range=3, count=20):
     try:
         if not HOTPEPPER_API_KEY:
             raise RuntimeError("HOTPEPPER_API_KEY is not configured")
         base_url = "https://webservice.recruit.co.jp/hotpepper/gourmet/v1/"
         query_params = {
             'key': HOTPEPPER_API_KEY, 'lat': lat, 'lng': lon, 'keyword': keyword,
-            'range': search_range, 'order': 4, 'count': 50, 'format': 'json',
+            'range': search_range, 'order': 4, 'count': count, 'format': 'json',
         }
         full_url = f"{base_url}?{urllib.parse.urlencode(query_params)}"
         req = urllib.request.Request(full_url)
         with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as res:
             data = json.loads(res.read().decode())
             if 'results' in data and 'shop' in data['results']:
-                shops = data['results']['shop']
-                return random.sample(shops, min(len(shops), 5))
+                return data['results']['shop']
             return []
     except Exception as e:
         print(f"HotPepper API Error: {e}")
         traceback.print_exc()
         return []
+
+
+def get_restaurants_for_keywords(lat, lon, keywords, search_range=3, limit=5):
+    shops = []
+    for keyword in keywords[:MAX_SEARCH_KEYWORDS]:
+        found = get_restaurants(lat, lon, keyword, search_range)
+        if found:
+            random.shuffle(found)
+            _merge_unique_shops(shops, found, limit=limit)
+        if len(shops) >= limit:
+            break
+    return shops
 
 
 def save_log_to_dynamodb(lat, lon, weather, temp, keyword, logic):
@@ -158,30 +187,33 @@ def lambda_handler(event, context):
         logic_reason = f"score | range={search_range} | top={rec['debug']['top'][:3]}"
 
         # --- 検索 + フォールバック ---
-        shops = get_restaurants(lat, lon, keyword, search_range)
+        search_keywords = rec.get("search_keywords") or [keyword]
+        shops = get_restaurants_for_keywords(lat, lon, search_keywords, search_range)
 
         # [再試行1] 0件なら、まず半径を広げる
         if not shops and search_range < 3:
-            shops = get_restaurants(lat, lon, keyword, 3)
+            shops = get_restaurants_for_keywords(lat, lon, search_keywords, 3)
             logic_reason += " (range extended)"
 
         # [再試行2] それでも0件なら、汎用ワードに逃げる前に
         #           「次に点数の高い候補」を順に試す (テーマを保ったままフォールバック)
         if not shops:
-            for alt in rec["ranked_keywords"][1:4]:
-                shops = get_restaurants(lat, lon, alt, 5)
+            for alt in rec["ranked_candidates"][1:6]:
+                shops = get_restaurants_for_keywords(lat, lon, [alt["keyword"]], 5)
                 if shops:
-                    keyword = alt
-                    msg = "条件にぴったりではないですが、近くで人気のお店を見つけました！"
-                    logic_reason += f" (re-rank fallback: {alt})"
+                    keyword = alt["keyword"]
+                    msg = alt["msg"]
+                    reason = f"検索結果に合わせて「{keyword}」に切り替えました。"
+                    logic_reason += f" (re-rank fallback: {keyword})"
                     break
 
         # [最終] まだ0件なら時間帯ベースの汎用ワードで広域検索
         if not shops:
             generic = "ランチ" if 11 <= now.hour < 15 else "カフェ" if now.hour < 17 else "居酒屋"
-            shops = get_restaurants(lat, lon, generic, 5)
+            shops = get_restaurants_for_keywords(lat, lon, [generic], 5)
             keyword = generic
             msg = "近くにお店が見つからなかったので、周辺の人気スポットを探してきました！🏃"
+            reason = f"周辺店舗の見つかりやすさを優先して「{generic}」で探しました。"
             logic_reason += f" (final fallback: {generic})"
 
         save_log_to_dynamodb(lat, lon, weather, temp, keyword, logic_reason)

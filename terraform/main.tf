@@ -77,8 +77,23 @@ resource "aws_iam_role_policy_attachment" "lambda_logs" {
 # 3. Lambda
 # ==========================================
 data "archive_file" "lambda_zip" {
-  type        = "zip"
-  source_dir  = "../backend"
+  type = "zip"
+
+  source {
+    content  = file("../backend/lambda_function.py")
+    filename = "lambda_function.py"
+  }
+
+  source {
+    content  = file("../backend/recommender.py")
+    filename = "recommender.py"
+  }
+
+  source {
+    content  = file("../backend/foods.json")
+    filename = "foods.json"
+  }
+
   output_path = "lambda_function.zip"
 }
 

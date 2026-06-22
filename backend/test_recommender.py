@@ -5,6 +5,10 @@ import recommender
 
 
 class RecommenderTest(unittest.TestCase):
+    def test_catalog_is_loaded_from_json_with_categories(self):
+        self.assertGreaterEqual(len(recommender.CANDIDATES), 60)
+        self.assertTrue(all("category" in c for c in recommender.CANDIDATES))
+
     def test_hot_humid_lunch_prefers_refreshing_keywords(self):
         with patch("recommender.random.random", return_value=0):
             result = recommender.recommend(
@@ -21,6 +25,7 @@ class RecommenderTest(unittest.TestCase):
             {"冷麺", "冷やし中華", "そうめん", "タイ料理", "海鮮丼", "サラダボウル"},
         )
         self.assertIn("暑さ", result["reason"])
+        self.assertIn("search_keywords", result)
 
     def test_rainy_lunch_uses_shorter_search_range(self):
         result = recommender.recommend(
@@ -33,8 +38,12 @@ class RecommenderTest(unittest.TestCase):
 
         self.assertEqual(result["search_range"], 2)
         self.assertIn("ranked_keywords", result)
+        self.assertEqual(
+            len(result["search_keywords"]),
+            len({recommender.get_candidate(k)["category"] for k in result["search_keywords"]}),
+        )
 
-    def test_recent_keyword_is_penalized(self):
+    def test_recent_category_is_penalized(self):
         no_recent = recommender.recommend(
             temp=4,
             humidity=55,
@@ -44,19 +53,20 @@ class RecommenderTest(unittest.TestCase):
             recent=[],
             top_k=5,
         )
+        recent_top = no_recent["ranked_candidates"][0]
         with_recent = recommender.recommend(
             temp=4,
             humidity=55,
             weather="Snow",
             hour=19,
             weekday=3,
-            recent=[no_recent["ranked_keywords"][0]],
+            recent=[recent_top["keyword"]],
             top_k=5,
         )
 
         self.assertNotEqual(
-            no_recent["ranked_keywords"][0],
-            with_recent["ranked_keywords"][0],
+            recent_top["category"],
+            with_recent["ranked_candidates"][0]["category"],
         )
 
 

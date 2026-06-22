@@ -12,7 +12,9 @@ recommender.py
   - なぜその提案になったかを reason として返す (説明可能性 = "AI"の主張を本物にする)。
 """
 
+import json
 import math
+import os
 import random
 
 
@@ -25,82 +27,29 @@ def _clamp(x, lo=0.0, hi=1.0):
     return max(lo, min(hi, x))
 
 
-# ==========================================
-# 料理候補カタログ
-# aff = この料理が「どの状況に向くか」の親和度 (0.0〜1.0)。
-#       コンテキスト信号との内積で点数が決まる。
-# ==========================================
-CANDIDATES = [
-    # --- 温かい系 (寒い・雨に強い) ---
-    {"keyword": "鍋",        "msg": "芯から温まる鍋で、ほっと一息つきませんか🍲",       "aff": {"temp_cold": 0.9, "t_dinner": 0.5, "rainy": 0.3}},
-    {"keyword": "ラーメン",   "msg": "熱々のラーメンが体に染みる一杯を🍜",               "aff": {"temp_cold": 0.7, "t_lunch": 0.4, "t_dinner": 0.4, "t_late": 0.6, "rainy": 0.4}},
-    {"keyword": "うどん",     "msg": "やさしい出汁のうどんで温まりましょう。",            "aff": {"temp_cold": 0.5, "rainy": 0.4, "t_lunch": 0.4}},
-    {"keyword": "おでん",     "msg": "じっくり煮込んだおでんが恋しい季節です。",          "aff": {"temp_cold": 0.7, "t_dinner": 0.4, "t_late": 0.5}},
-    {"keyword": "スープカレー", "msg": "スパイスの効いたスープカレーでポカポカに🌶️",      "aff": {"temp_cold": 0.6, "humid": 0.3}},
-    {"keyword": "味噌ラーメン", "msg": "冷える日は濃厚な味噌ラーメンで体を温めましょう。", "aff": {"temp_cold": 0.8, "t_lunch": 0.4, "t_dinner": 0.5, "rainy": 0.3}},
-    {"keyword": "しゃぶしゃぶ", "msg": "ゆっくり温まるしゃぶしゃぶはいかがですか。",       "aff": {"temp_cold": 0.7, "t_dinner": 0.7, "weekend": 0.3}},
-    {"keyword": "韓国料理",     "msg": "ピリ辛の韓国料理で体の中からポカポカに。",          "aff": {"temp_cold": 0.5, "humid": 0.3, "t_dinner": 0.5}},
+CATALOG_PATH = os.path.join(os.path.dirname(__file__), "foods.json")
 
-    # --- さっぱり・冷たい系 (暑い・蒸す日に強い) ---
-    {"keyword": "冷麺",       "msg": "つるっと冷麺で涼やかに🥶",                        "aff": {"temp_hot": 0.9, "humid": 0.4, "t_lunch": 0.5}},
-    {"keyword": "冷やし中華",  "msg": "ジメジメした日は、さっぱり冷やし中華が最高！",      "aff": {"temp_hot": 0.7, "humid": 0.7, "t_lunch": 0.6}},
-    {"keyword": "そうめん",    "msg": "喉ごし爽やかなそうめんでクールダウン。",            "aff": {"temp_hot": 0.6, "humid": 0.5, "t_lunch": 0.4}},
-    {"keyword": "かき氷",     "msg": "ひんやりかき氷で涼みましょう🍧",                   "aff": {"temp_hot": 0.8, "t_tea": 0.6}},
-    {"keyword": "うなぎ",     "msg": "暑さに負けないよう、うなぎでスタミナ補給！",        "aff": {"temp_hot": 0.5, "t_dinner": 0.4}},
-    {"keyword": "寿司",       "msg": "暑い日はさっぱりしたお寿司で軽やかに。",            "aff": {"temp_hot": 0.4, "temp_mild": 0.3, "t_lunch": 0.4, "t_dinner": 0.5}},
-    {"keyword": "海鮮丼",     "msg": "さっぱり海鮮丼で、気分もすっきり。",                "aff": {"temp_hot": 0.4, "t_lunch": 0.6, "sunny": 0.3}},
-    {"keyword": "サラダボウル", "msg": "軽めに整えたい日はサラダボウルが合いそうです。",    "aff": {"temp_hot": 0.4, "temp_mild": 0.4, "t_lunch": 0.5}},
 
-    # --- 湿度・スパイシー系 ---
-    {"keyword": "エスニック",  "msg": "蒸し暑い日はスパイシーなエスニックが合います。",    "aff": {"humid": 0.7, "temp_hot": 0.4, "t_dinner": 0.4}},
-    {"keyword": "激辛",       "msg": "ガツンと辛いもので気合いを入れましょう🌶️",        "aff": {"humid": 0.5, "d_monday_lunch": 0.8, "t_lunch": 0.4}},
-    {"keyword": "タイ料理",    "msg": "湿度が高い日は香りの良いタイ料理でリフレッシュ。",  "aff": {"humid": 0.8, "temp_hot": 0.4, "t_lunch": 0.4, "t_dinner": 0.5}},
-    {"keyword": "担々麺",     "msg": "蒸し暑さを吹き飛ばす担々麺も良さそうです。",        "aff": {"humid": 0.5, "t_lunch": 0.5, "t_dinner": 0.4}},
+def _load_candidates(path=CATALOG_PATH):
+    with open(path, encoding="utf-8") as f:
+        candidates = json.load(f)
 
-    # --- 雨・駅近系 ---
-    {"keyword": "駅近 ランチ", "msg": "雨に濡れにくい駅近のお店を厳選しました☔️",        "aff": {"rainy": 0.8, "t_lunch": 0.6}},
-    {"keyword": "デリバリー",  "msg": "雨足が強いですね。デリバリー対応店はいかが？",      "aff": {"rainy": 0.7}},
-    {"keyword": "地下街 グルメ", "msg": "雨の日は移動しやすい地下街グルメが便利です。",    "aff": {"rainy": 0.9, "t_lunch": 0.4, "t_dinner": 0.3}},
-    {"keyword": "駅ビル レストラン", "msg": "天気が崩れる日は駅ビル内のお店が安心です。", "aff": {"rainy": 0.8, "cloudy": 0.3, "t_lunch": 0.4, "t_dinner": 0.4}},
+    required = {"keyword", "msg", "category", "aff"}
+    seen = set()
+    for c in candidates:
+        missing = required - set(c)
+        if missing:
+            raise ValueError(f"Food candidate is missing keys: {missing}")
+        if c["keyword"] in seen:
+            raise ValueError(f"Duplicate food keyword: {c['keyword']}")
+        if not isinstance(c["aff"], dict) or not c["aff"]:
+            raise ValueError(f"Invalid affinity map: {c['keyword']}")
+        seen.add(c["keyword"])
+    return candidates
 
-    # --- 穏やかな陽気・定番ランチ ---
-    {"keyword": "定食",       "msg": "バランスの良い定食で午後も元気に🍱",              "aff": {"temp_mild": 0.5, "t_lunch": 0.7}},
-    {"keyword": "パスタ",     "msg": "美味しいパスタでランチタイムを🍝",                "aff": {"temp_mild": 0.5, "t_lunch": 0.5, "t_dinner": 0.3}},
-    {"keyword": "ハンバーガー", "msg": "ガッツリ気分ならハンバーガー！🍔",               "aff": {"temp_mild": 0.4, "t_lunch": 0.5}},
-    {"keyword": "オムライス",  "msg": "ふわふわ卵のオムライスで幸せ気分。",              "aff": {"temp_mild": 0.4, "t_lunch": 0.4}},
-    {"keyword": "ビストロ",    "msg": "過ごしやすい日はビストロで少し気分を変えてみませんか。", "aff": {"temp_mild": 0.5, "t_lunch": 0.3, "t_dinner": 0.5, "weekend": 0.4}},
-    {"keyword": "イタリアン",  "msg": "穏やかな天気にはイタリアンが気分に合いそうです。",  "aff": {"temp_mild": 0.5, "t_lunch": 0.4, "t_dinner": 0.5}},
-    {"keyword": "ベーカリーカフェ", "msg": "晴れた日はベーカリーカフェで軽やかに。",      "aff": {"sunny": 0.6, "temp_mild": 0.4, "t_morning": 0.5, "t_lunch": 0.3}},
 
-    # --- カフェ・ティータイム ---
-    {"keyword": "パンケーキ",  "msg": "午後のひとときに甘いパンケーキ🥞",                "aff": {"t_tea": 0.8}},
-    {"keyword": "カフェ",     "msg": "コーヒーの香りでリラックスタイム☕️",             "aff": {"t_tea": 0.7, "t_morning": 0.5, "temp_mild": 0.3}},
-    {"keyword": "スイーツ",    "msg": "疲れた頭には甘いスイーツが一番🍰",               "aff": {"t_tea": 0.7}},
-    {"keyword": "喫茶店",      "msg": "落ち着いた喫茶店でひと休みしましょう。",           "aff": {"t_tea": 0.7, "cloudy": 0.4, "rainy": 0.3}},
-    {"keyword": "ドーナツ",    "msg": "小腹が空いた時間にドーナツで甘い休憩を。",         "aff": {"t_tea": 0.6, "t_morning": 0.3}},
-
-    # --- ディナー・社交系 ---
-    {"keyword": "居酒屋",     "msg": "今日もお疲れ様！近くで乾杯🍻",                    "aff": {"t_dinner": 0.7, "d_friday_night": 1.0}},
-    {"keyword": "焼き鳥",     "msg": "香ばしい焼き鳥とビール、最高ですね。",            "aff": {"t_dinner": 0.6, "d_friday_night": 0.7}},
-    {"keyword": "焼肉",       "msg": "ガッツリ焼肉でスタミナ補給！🥩",                  "aff": {"t_dinner": 0.7, "temp_cold": 0.3}},
-    {"keyword": "バル",       "msg": "おしゃれなバルでワインなんていかが？🍷",          "aff": {"t_dinner": 0.5, "d_friday_night": 0.8}},
-    {"keyword": "餃子",       "msg": "肉汁たっぷりの餃子でご飯が進む！🥟",              "aff": {"t_dinner": 0.5, "t_late": 0.5}},
-    {"keyword": "もつ鍋",     "msg": "夜はもつ鍋でしっかり温まりましょう。",             "aff": {"t_dinner": 0.7, "temp_cold": 0.5, "d_friday_night": 0.3}},
-    {"keyword": "寿司 居酒屋", "msg": "少し贅沢に、寿司居酒屋で夜ごはんはいかがですか。", "aff": {"t_dinner": 0.6, "d_friday_night": 0.5, "weekend": 0.4}},
-    {"keyword": "ワインバー",  "msg": "週末気分にはワインバーも良さそうです。",          "aff": {"t_dinner": 0.5, "d_friday_night": 0.8, "weekend": 0.5}},
-
-    # --- 月曜の活力 ---
-    {"keyword": "カツ丼",     "msg": "今週も「勝つ」！カツ丼でエネルギーチャージ💪",     "aff": {"d_monday_lunch": 0.9, "t_lunch": 0.5}},
-    {"keyword": "カレー",     "msg": "スパイスの力で午後も活性化🍛",                    "aff": {"d_monday_lunch": 0.6, "t_lunch": 0.4, "temp_mild": 0.3}},
-    {"keyword": "唐揚げ定食",  "msg": "しっかり食べたい日は唐揚げ定食でエネルギー補給。", "aff": {"d_monday_lunch": 0.6, "t_lunch": 0.6}},
-
-    # --- モーニング ---
-    {"keyword": "カフェ モーニング", "msg": "少し早起きして、優雅なモーニング☕️",       "aff": {"t_morning": 1.0}},
-    {"keyword": "パン屋",     "msg": "焼きたてパンの香りで一日をスタート🥐",            "aff": {"t_morning": 0.8}},
-    {"keyword": "おにぎり",    "msg": "日本の朝はやっぱりおにぎりとお味噌汁🍙",          "aff": {"t_morning": 0.6}},
-    {"keyword": "和朝食",      "msg": "朝は和朝食で一日を落ち着いて始めましょう。",       "aff": {"t_morning": 0.8, "temp_cold": 0.2}},
-    {"keyword": "サンドイッチ", "msg": "手軽なサンドイッチで朝を軽やかに。",              "aff": {"t_morning": 0.6, "temp_mild": 0.3}},
-]
+CANDIDATES = _load_candidates()
+CANDIDATE_BY_KEYWORD = {c["keyword"]: c for c in CANDIDATES}
 
 
 # 信号 -> 日本語ラベル (reason生成用)
@@ -196,6 +145,42 @@ def _build_reason(contrib):
     return " × ".join(labels) + " から選びました。"
 
 
+def get_candidate(keyword):
+    """キーワードに対応する料理候補を返す。フォールバック理由の整合性にも使う。"""
+    return CANDIDATE_BY_KEYWORD.get(keyword)
+
+
+def _recent_categories(recent):
+    categories = set()
+    for keyword in recent:
+        candidate = get_candidate(keyword)
+        if candidate:
+            categories.add(candidate["category"])
+    return categories
+
+
+def _diverse_keywords(scored, limit=5):
+    """検索候補はカテゴリを散らして、似た検索語の連打を避ける。"""
+    keywords = []
+    used_categories = set()
+
+    for candidate, _score_value, _contrib in scored:
+        category = candidate["category"]
+        if category in used_categories:
+            continue
+        keywords.append(candidate["keyword"])
+        used_categories.add(category)
+        if len(keywords) >= limit:
+            return keywords
+
+    for candidate, _score_value, _contrib in scored:
+        if candidate["keyword"] not in keywords:
+            keywords.append(candidate["keyword"])
+        if len(keywords) >= limit:
+            break
+    return keywords
+
+
 def _decide_range(sig):
     """状況に応じた検索半径。暑い・雨の日は移動距離を縮める。"""
     if sig.get("temp_hot", 0) > 0.6:
@@ -230,6 +215,7 @@ def recommend(temp, humidity, weather, hour, weekday, recent=None, top_k=8):
         debug (採点の中身: ログ/チューニング用)
     """
     recent = set(recent or [])
+    recent_categories = _recent_categories(recent)
     sig = build_context_signals(temp, humidity, weather, hour, weekday)
 
     scored = []
@@ -237,7 +223,9 @@ def recommend(temp, humidity, weather, hour, weekday, recent=None, top_k=8):
         s, contrib = _score(c, sig)
         # 直近で出したキーワードは大きく減点 (同じ提案の連続を防ぐ)
         if c["keyword"] in recent:
-            s *= 0.3
+            s *= 0.25
+        elif c["category"] in recent_categories:
+            s *= 0.65
         scored.append((c, s, contrib))
 
     scored.sort(key=lambda x: (x[1], x[0]["keyword"]), reverse=True)
@@ -250,10 +238,22 @@ def recommend(temp, humidity, weather, hour, weekday, recent=None, top_k=8):
         "keyword": winner["keyword"],
         "msg": winner["msg"],
         "reason": _build_reason(winner_contrib),
+        "category": winner["category"],
         "search_range": _decide_range(sig),
         "ranked_keywords": [c["keyword"] for (c, s, contrib) in scored],
+        "ranked_candidates": [
+            {
+                "keyword": c["keyword"],
+                "category": c["category"],
+                "msg": c["msg"],
+                "reason": _build_reason(contrib),
+                "score": round(s, 3),
+            }
+            for (c, s, contrib) in scored
+        ],
+        "search_keywords": _diverse_keywords(scored, limit=5),
         "debug": {
             "signals": sig,
-            "top": [(c["keyword"], round(s, 3)) for (c, s, contrib) in top],
+            "top": [(c["keyword"], c["category"], round(s, 3)) for (c, s, contrib) in top],
         },
     }
