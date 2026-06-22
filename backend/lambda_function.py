@@ -16,7 +16,11 @@ import recommender  # ★ スコアリングエンジンを分離
 WEATHER_API_KEY = os.environ.get('WEATHER_API_KEY')
 HOTPEPPER_API_KEY = os.environ.get('HOTPEPPER_API_KEY')
 TABLE_NAME = os.environ.get('LOG_TABLE_NAME', 'OtenkiMeshi_Log_TF')
+ALLOWED_ORIGIN = os.environ.get('ALLOWED_ORIGIN', '*')
 HTTP_TIMEOUT = 5
+DEFAULT_LAT = "35.690921"
+DEFAULT_LON = "139.700258"
+MAX_RECENT_KEYWORDS = 8
 
 try:
     dynamodb = boto3.resource('dynamodb')
@@ -26,16 +30,39 @@ except Exception as e:
     table = None
 
 
-def _valid_coord(value):
+def _to_float(value):
     try:
-        float(value)
-        return True
+        return float(value)
     except (TypeError, ValueError):
-        return False
+        return None
+
+
+def _normalize_coord(lat, lon):
+    lat_num = _to_float(lat)
+    lon_num = _to_float(lon)
+    if lat_num is None or lon_num is None:
+        return DEFAULT_LAT, DEFAULT_LON
+    if not (-90 <= lat_num <= 90 and -180 <= lon_num <= 180):
+        return DEFAULT_LAT, DEFAULT_LON
+    return f"{lat_num:.6f}", f"{lon_num:.6f}"
+
+
+def _parse_recent(value):
+    allowed = {c["keyword"] for c in recommender.CANDIDATES}
+    recent = []
+    for keyword in (value or "").split(","):
+        keyword = keyword.strip()
+        if keyword in allowed and keyword not in recent:
+            recent.append(keyword)
+        if len(recent) >= MAX_RECENT_KEYWORDS:
+            break
+    return recent
 
 
 def get_weather_data(lat, lon):
     try:
+        if not WEATHER_API_KEY:
+            raise RuntimeError("WEATHER_API_KEY is not configured")
         params = urllib.parse.urlencode({
             'lat': lat, 'lon': lon, 'units': 'metric', 'appid': WEATHER_API_KEY,
         })
@@ -58,6 +85,8 @@ def get_weather_data(lat, lon):
 
 def get_restaurants(lat, lon, keyword, search_range=3):
     try:
+        if not HOTPEPPER_API_KEY:
+            raise RuntimeError("HOTPEPPER_API_KEY is not configured")
         base_url = "https://webservice.recruit.co.jp/hotpepper/gourmet/v1/"
         query_params = {
             'key': HOTPEPPER_API_KEY, 'lat': lat, 'lng': lon, 'keyword': keyword,
@@ -97,7 +126,7 @@ def save_log_to_dynamodb(lat, lon, weather, temp, keyword, logic):
 
 def lambda_handler(event, context):
     headers = {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
         'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Allow-Methods': 'OPTIONS,GET'
     }
@@ -106,11 +135,10 @@ def lambda_handler(event, context):
         params = event.get('queryStringParameters') or {}
         lat = params.get('lat')
         lon = params.get('lon')
-        if not _valid_coord(lat) or not _valid_coord(lon):
-            lat, lon = "35.690921", "139.700258"  # 新宿駅 (フェイルセーフ)
+        lat, lon = _normalize_coord(lat, lon)
 
         # 直近で出した提案 (フロントから "recent=ラーメン,焼肉" のように渡す)。同じ提案の連続を防ぐ。
-        recent = [k for k in (params.get('recent') or "").split(",") if k]
+        recent = _parse_recent(params.get('recent'))
 
         weather, temp, humidity = get_weather_data(lat, lon)
 
@@ -169,7 +197,6 @@ def lambda_handler(event, context):
                 'reason': reason,        # ★ "なぜこれ？" をフロントに渡す
                 'keyword': keyword,
                 'shops': shops,
-                'logic': logic_reason,
             }, ensure_ascii=False)
         }
 

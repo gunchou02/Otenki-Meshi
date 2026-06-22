@@ -733,7 +733,12 @@
        */
       async function fetchData(lat, lon) {
         try {
-          const response = await fetch(`${API_URL}?lat=${lat}&lon=${lon}`);
+          const params = new URLSearchParams({
+            lat,
+            lon,
+            recent: getRecentKeywords().join(","),
+          });
+          const response = await fetch(`${API_URL}?${params.toString()}`);
 
           // HTTPステータスコードのチェック
           if (!response.ok) {
@@ -800,6 +805,7 @@
           temp: Math.round(data.temp),
           keyword: data.keyword,
           message: data.message,
+          reason: data.reason,
           shops: data.shops,
         };
 
@@ -846,10 +852,10 @@
                   <div class="w-10 h-10 shrink-0 rounded-full bg-blue-50 flex items-center justify-center text-lg shadow-sm">${weatherIcon}</div>
                   <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-2 mb-0.5">
-                        <p class="text-sm font-bold text-gray-800 truncate">${item.keyword}</p>
+                        <p class="text-sm font-bold text-gray-800 truncate">${escapeHtml(item.keyword)}</p>
                         <span class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-medium">${item.temp}°C</span>
                       </div>
-                      <p class="text-xs text-gray-500 truncate"><i class="fa-solid fa-store mr-1 text-gray-300"></i>${firstShop}...</p>
+                      <p class="text-xs text-gray-500 truncate"><i class="fa-solid fa-store mr-1 text-gray-300"></i>${escapeHtml(firstShop)}...</p>
                       <p class="text-[10px] text-gray-300 mt-0.5">${item.date}</p>
                   </div>
               </div>
@@ -872,6 +878,50 @@
           Mist: "🌫️",
         };
         return map[weather] || "🌤️";
+      }
+
+      function getRecentKeywords() {
+        try {
+          const history = JSON.parse(
+            localStorage.getItem("otenki_history") || "[]",
+          );
+          return [
+            ...new Set(
+              history
+                .map((item) => item.keyword)
+                .filter((keyword) => typeof keyword === "string" && keyword),
+            ),
+          ].slice(0, 5);
+        } catch (error) {
+          console.warn("History parse failed:", error);
+          return [];
+        }
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "").replace(
+          /[&<>"']/g,
+          (char) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[char],
+        );
+      }
+
+      function safeExternalUrl(value) {
+        try {
+          const url = new URL(value);
+          if (url.protocol === "https:" || url.protocol === "http:") {
+            return url.href;
+          }
+        } catch (error) {
+          console.warn("Invalid external URL:", error);
+        }
+        return "#";
       }
 
       // 結果画面の描画処理
@@ -943,13 +993,21 @@
         iconEl.className = `fa-solid ${info.icon} ${info.color}`;
         document.getElementById("weatherIconBg").className =
           `w-16 h-16 rounded-2xl flex items-center justify-center text-4xl shadow-sm ${info.bg}`;
-        document.getElementById("weatherMessage").innerText = data.message;
+        document.getElementById("weatherMessage").innerText = data.reason
+          ? `${data.message}\n${data.reason}`
+          : data.message;
 
         // 店舗リスト生成
         shopList.innerHTML = "";
         if (data.shops) {
           data.shops.forEach((shop, index) => {
             const delay = index * 100;
+            const shopName = escapeHtml(shop.name);
+            const shopPhoto = safeExternalUrl(shop.photo?.pc?.s);
+            const shopUrl = safeExternalUrl(shop.urls?.pc);
+            const genreName = escapeHtml(shop.genre?.name || "グルメ");
+            const shopCatch = escapeHtml(shop.catch || "");
+            const budgetName = escapeHtml(shop.budget?.name || "予算情報なし");
             // Google Maps 検索用URL生成
             const query = encodeURIComponent(
               shop.name + " " + (shop.address || ""),
@@ -958,24 +1016,24 @@
 
             const card = `
                 <div class="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 slide-up cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group" style="animation-delay: ${delay}ms;">
-                  <div class="flex gap-5 mb-4" onclick="window.open('${shop.urls.pc}', '_blank')">
+                  <a href="${escapeHtml(shopUrl)}" target="_blank" rel="noopener" class="flex gap-5 mb-4">
                     <div class="relative w-24 h-24 shrink-0">
-                      <img src="${shop.photo.pc.s}" alt="${shop.name}" class="w-full h-full rounded-2xl object-cover bg-gray-100 shadow-sm">
+                      <img src="${escapeHtml(shopPhoto)}" alt="${shopName}" class="w-full h-full rounded-2xl object-cover bg-gray-100 shadow-sm">
                     </div>
                     <div class="flex-1 min-w-0 flex flex-col justify-center py-1">
-                      <h3 class="font-bold text-gray-900 text-base truncate mb-1.5 group-hover:text-blue-600 transition-colors">${shop.name}</h3>
+                      <h3 class="font-bold text-gray-900 text-base truncate mb-1.5 group-hover:text-blue-600 transition-colors">${shopName}</h3>
                       <div class="flex flex-wrap items-center text-xs text-gray-500 mb-3 gap-2">
-                        <span class="bg-gray-100 px-2.5 py-1 rounded-lg text-gray-600 font-bold truncate">${shop.genre.name}</span>
-                        <span class="truncate text-gray-400 pl-1">${shop.catch}</span>
+                        <span class="bg-gray-100 px-2.5 py-1 rounded-lg text-gray-600 font-bold truncate">${genreName}</span>
+                        <span class="truncate text-gray-400 pl-1">${shopCatch}</span>
                       </div>
                       <div class="flex items-center gap-2">
                         <div class="text-xs font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full flex items-center">
-                            <i class="fa-solid fa-yen-sign mr-1 text-[10px]"></i>${shop.budget.name}
+                            <i class="fa-solid fa-yen-sign mr-1 text-[10px]"></i>${budgetName}
                         </div>
                       </div>
                     </div>
-                  </div>
-                  <a href="${mapUrl}" target="_blank" class="flex items-center justify-center w-full py-3 bg-[#f8fafc] text-gray-600 text-sm font-bold rounded-2xl hover:bg-blue-600 hover:text-white transition-all gap-2">
+                  </a>
+                  <a href="${mapUrl}" target="_blank" rel="noopener" class="flex items-center justify-center w-full py-3 bg-[#f8fafc] text-gray-600 text-sm font-bold rounded-2xl hover:bg-blue-600 hover:text-white transition-all gap-2">
                     <i class="fa-solid fa-location-arrow"></i> ルート案内を見る
                   </a>
                 </div>
